@@ -421,7 +421,9 @@ class CallgraphViewer {
                 zoomView: true,
                 hover: true,
                 navigationButtons: true,
-                keyboard: true
+                keyboard: true,
+                multiselect: true,
+                selectConnectedEdges: false
             },
             manipulation: {
                 enabled: false
@@ -463,11 +465,15 @@ class CallgraphViewer {
     }
 
     setupNetworkEvents() {
-        // Single click - show details
+        // Single click - show details or deselect
         this.network.on('click', (params) => {
             if (params.nodes.length > 0) {
                 const nodeId = params.nodes[0];
                 this.showNodeDetails(nodeId);
+            } else if (params.edges.length === 0) {
+                // Clicked on canvas (not on nodes or edges) - deselect all
+                this.network.unselectAll();
+                this.hideDetailPanel();
             }
         });
 
