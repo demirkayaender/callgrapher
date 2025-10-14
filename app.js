@@ -13,6 +13,7 @@ class CallgraphViewer {
         this.contextMenuNode = null;
         this.lastActionNode = null; // Track last interacted node for highlighting
         this.flashTimeouts = new Map(); // Track flash animation timeouts
+        this.showIsolatedNodes = false; // By default, hide isolated nodes (nodes with no connections)
         
         this.initializeEventListeners();
         this.createContextMenu();
@@ -30,6 +31,7 @@ class CallgraphViewer {
         // Control buttons
         document.getElementById('collapse-all-button').addEventListener('click', () => this.collapseAllNodes());
         document.getElementById('expand-all-button').addEventListener('click', () => this.expandAllNodes());
+        document.getElementById('toggle-isolated-button').addEventListener('click', () => this.toggleIsolatedNodes());
         document.getElementById('help-button').addEventListener('click', () => this.toggleHelpOverlay());
         document.getElementById('fit-button').addEventListener('click', () => this.fitGraph());
         document.getElementById('zoom-text-button').addEventListener('click', () => this.zoomToText());
@@ -342,6 +344,24 @@ class CallgraphViewer {
             // Create working copies
             this.nodes = new vis.DataSet(parsedData.nodes);
             this.edges = new vis.DataSet(parsedData.edges);
+
+            // Filter isolated nodes if needed
+            if (!this.showIsolatedNodes) {
+                const allEdges = this.edges.get();
+                const isolatedNodeIds = [];
+                
+                this.nodes.forEach(node => {
+                    const hasIncoming = allEdges.some(e => e.to === node.id);
+                    const hasOutgoing = allEdges.some(e => e.from === node.id);
+                    
+                    if (!hasIncoming && !hasOutgoing) {
+                        isolatedNodeIds.push(node.id);
+                    }
+                });
+                
+                // Remove isolated nodes
+                this.nodes.remove(isolatedNodeIds);
+            }
 
             // Enhance node styling
             this.nodes.forEach((node) => {
@@ -972,9 +992,25 @@ class CallgraphViewer {
             }
         });
         
+        // Get all edges for checking isolated nodes
+        const allEdges = this.originalData.edges.get();
+        
+        // Helper function to check if a node is isolated (no connections)
+        const isIsolated = (nodeId) => {
+            return !allEdges.some(edge => edge.from === nodeId || edge.to === nodeId);
+        };
+        
         // Update nodes dataset
         const visibleNodes = this.originalData.nodes.get({
-            filter: (node) => !this.hiddenNodes.has(node.id)
+            filter: (node) => {
+                // Check if node is hidden by collapse
+                if (this.hiddenNodes.has(node.id)) return false;
+                
+                // Check if node is isolated and should be hidden
+                if (!this.showIsolatedNodes && isIsolated(node.id)) return false;
+                
+                return true;
+            }
         });
 
         // Update edges dataset
@@ -987,8 +1023,95 @@ class CallgraphViewer {
         this.nodes.clear();
         this.edges.clear();
         
-        // Re-add visible nodes with their styling and preserved positions
+        // Separate isolated nodes from connected nodes
+        const connectedNodes = [];
+        const isolatedNodes = [];
+        
         visibleNodes.forEach((node) => {
+            if (isIsolated(node.id)) {
+                isolatedNodes.push(node);
+            } else {
+                connectedNodes.push(node);
+            }
+        });
+        
+        // Calculate bounding box of connected nodes
+        let maxY = 0;
+        let minX = Infinity;
+        let maxX = -Infinity;
+        connectedNodes.forEach((node) => {
+            const position = currentPositions[node.id] || this.originalPositions.get(node.id) || {};
+            if (position.y !== undefined && position.y > maxY) {
+                maxY = position.y;
+            }
+            if (position.x !== undefined) {
+                if (position.x < minX) minX = position.x;
+                if (position.x > maxX) maxX = position.x;
+            }
+        });
+        
+        // Position for the center of the circle (below the graph)
+        const circleX = (minX + maxX) / 2; // Center horizontally
+        const circleY = maxY + 500; // 500px below the lowest node
+        const circleRadius = Math.max(200, Math.sqrt(isolatedNodes.length) * 80); // Dynamic radius based on count
+        
+        // Collect all existing node positions for collision detection
+        const existingPositions = [];
+        connectedNodes.forEach((node) => {
+            const position = currentPositions[node.id] || this.originalPositions.get(node.id) || {};
+            if (position.x !== undefined && position.y !== undefined) {
+                existingPositions.push({ x: position.x, y: position.y });
+            }
+        });
+        
+        // Helper function to check if a position overlaps with existing nodes
+        const checkOverlap = (x, y, minDistance = 150) => {
+            return existingPositions.some(pos => {
+                const dx = pos.x - x;
+                const dy = pos.y - y;
+                return Math.sqrt(dx * dx + dy * dy) < minDistance;
+            });
+        };
+        
+        // Generate positions within the circle area using Poisson-like distribution
+        const isolatedPositions = [];
+        for (let i = 0; i < isolatedNodes.length; i++) {
+            let attempts = 0;
+            let x, y, foundValidPosition = false;
+            
+            while (attempts < 100 && !foundValidPosition) {
+                // Random position within circle
+                const angle = Math.random() * 2 * Math.PI;
+                const r = Math.sqrt(Math.random()) * circleRadius; // sqrt for uniform distribution in circle area
+                x = circleX + r * Math.cos(angle);
+                y = circleY + r * Math.sin(angle);
+                
+                // Check for overlaps with both existing nodes and other isolated nodes
+                const overlapWithExisting = checkOverlap(x, y, 150);
+                const overlapWithIsolated = isolatedPositions.some(pos => {
+                    const dx = pos.x - x;
+                    const dy = pos.y - y;
+                    return Math.sqrt(dx * dx + dy * dy) < 120; // Minimum distance between isolated nodes
+                });
+                
+                if (!overlapWithExisting && !overlapWithIsolated) {
+                    foundValidPosition = true;
+                }
+                attempts++;
+            }
+            
+            // If we couldn't find a valid position after many attempts, use a fallback
+            if (!foundValidPosition) {
+                const fallbackAngle = (i / isolatedNodes.length) * 2 * Math.PI;
+                x = circleX + circleRadius * Math.cos(fallbackAngle);
+                y = circleY + circleRadius * Math.sin(fallbackAngle);
+            }
+            
+            isolatedPositions.push({ x, y });
+        }
+        
+        // Re-add visible nodes with their styling and preserved positions
+        connectedNodes.forEach((node) => {
             const collapseState = this.collapsedNodes.get(node.id);
             const isLastAction = node.id === this.lastActionNode;
             let color, fontColor;
@@ -1042,6 +1165,36 @@ class CallgraphViewer {
                 },
                 color: color,
                 borderWidth: borderWidth,
+                shape: 'box',
+                margin: 10,
+                widthConstraint: { minimum: 100, maximum: 200 }
+            });
+        });
+        
+        // Add isolated nodes using the calculated positions
+        isolatedNodes.forEach((node, index) => {
+            const position = isolatedPositions[index];
+            
+            // Use a distinct color for isolated nodes
+            const color = {
+                background: '#f3f4f6',
+                border: '#9ca3af',
+                highlight: {
+                    background: '#e5e7eb',
+                    border: '#6b7280'
+                }
+            };
+            
+            this.nodes.add({
+                ...node,
+                x: position.x,
+                y: position.y,
+                font: { 
+                    size: 14, 
+                    color: '#6b7280'
+                },
+                color: color,
+                borderWidth: 1,
                 shape: 'box',
                 margin: 10,
                 widthConstraint: { minimum: 100, maximum: 200 }
@@ -1237,6 +1390,31 @@ class CallgraphViewer {
         this.hiddenNodes.clear();
         this.hiddenEdges.clear();
         this.lastActionNode = null;
+
+        // Update the graph
+        this.updateGraphVisibility();
+        this.fitGraph();
+    }
+
+    toggleIsolatedNodes() {
+        if (!this.network || !this.originalData) {
+            return;
+        }
+
+        // Toggle the state
+        this.showIsolatedNodes = !this.showIsolatedNodes;
+
+        // Update button appearance to show current state
+        const button = document.getElementById('toggle-isolated-button');
+        if (this.showIsolatedNodes) {
+            button.classList.add('btn-primary');
+            button.classList.remove('btn-secondary');
+            button.title = 'Hide Isolated Nodes';
+        } else {
+            button.classList.remove('btn-primary');
+            button.classList.add('btn-secondary');
+            button.title = 'Show Isolated Nodes';
+        }
 
         // Update the graph
         this.updateGraphVisibility();

@@ -19,6 +19,8 @@ A modern, interactive web-based application for visualizing DOT callgraph files 
 - **Smart Collapse/Expand**: 
   - One-click "Collapse All" to show only entry functions (great for large graphs!)
   - Granular control: Right-click nodes to collapse/expand outgoing, incoming, or all connections
+- **Isolated Nodes Toggle**: Show/hide nodes with no connections (hidden by default for cleaner graphs)
+- **Multi-Select**: Select multiple nodes and move them together
 - **Context-Aware Menus**: Only shows applicable actions based on node state
 - **Node Details**: Click on any node to view detailed information
 - **Export**: Save your graph as a PNG image
