@@ -30,8 +30,9 @@ class CallgraphViewer {
         // Control buttons
         document.getElementById('collapse-all-button').addEventListener('click', () => this.collapseAllNodes());
         document.getElementById('expand-all-button').addEventListener('click', () => this.expandAllNodes());
-        document.getElementById('help-button').addEventListener('click', () => this.showHelpOverlay());
+        document.getElementById('help-button').addEventListener('click', () => this.toggleHelpOverlay());
         document.getElementById('fit-button').addEventListener('click', () => this.fitGraph());
+        document.getElementById('zoom-text-button').addEventListener('click', () => this.zoomToText());
         document.getElementById('reset-button').addEventListener('click', () => this.resetLayout());
         document.getElementById('export-button').addEventListener('click', () => this.exportGraph());
 
@@ -84,6 +85,17 @@ class CallgraphViewer {
             overlay.classList.add('hidden');
         } else {
             console.error('Help overlay element not found');
+        }
+    }
+
+    toggleHelpOverlay() {
+        const overlay = document.getElementById('help-overlay');
+        if (overlay) {
+            if (overlay.classList.contains('hidden')) {
+                this.showHelpOverlay();
+            } else {
+                this.hideHelpOverlay();
+            }
         }
     }
 
@@ -265,15 +277,15 @@ class CallgraphViewer {
             // Hide help overlay
             this.hideHelpOverlay();
 
-            // Show loading indicator
-            document.getElementById('file-name').textContent = 'Scanning folder...';
-
-            // Prompt user to select a directory
+            // Prompt user to select a directory (show picker first)
             const dirHandle = await window.showDirectoryPicker({
                 mode: 'read'
             });
 
-            document.getElementById('file-name').textContent = `Analyzing: ${dirHandle.name}`;
+            // Only update status if user actually selected something
+            document.getElementById('generate-status').textContent = 'Scanning folder...';
+            
+            document.getElementById('generate-status').textContent = `Analyzing: ${dirHandle.name}`;
 
             // Create parser and parse the directory
             const parser = new GoParser();
@@ -281,29 +293,28 @@ class CallgraphViewer {
 
             if (callGraph.functions.length === 0) {
                 alert('No Go functions found in the selected folder.');
-                document.getElementById('file-name').textContent = 'No functions found';
+                document.getElementById('generate-status').textContent = 'No functions found';
                 return;
             }
 
-            document.getElementById('file-name').textContent = `Generating graph for ${dirHandle.name}...`;
+            document.getElementById('generate-status').textContent = `Generating DOT for ${dirHandle.name}...`;
 
             // Generate DOT format
             const dotContent = parser.generateDOT(callGraph);
 
             // Update UI
-            document.getElementById('file-name').textContent = `${dirHandle.name} (${callGraph.functions.length} functions, ${callGraph.edges.length} calls)`;
+            document.getElementById('generate-status').textContent = `Generated: ${callGraph.functions.length} functions, ${callGraph.edges.length} calls`;
 
             // Parse and display the generated DOT
             this.parseDotFile(dotContent);
 
         } catch (error) {
             if (error.name === 'AbortError') {
-                // User cancelled the picker
-                document.getElementById('file-name').textContent = 'Cancelled';
+                // User cancelled the picker - keep the previous value
             } else {
                 console.error('Error generating callgraph:', error);
                 alert(`Error: ${error.message}`);
-                document.getElementById('file-name').textContent = 'Error generating graph';
+                document.getElementById('generate-status').textContent = 'Error generating DOT';
             }
         }
     }
@@ -1049,6 +1060,33 @@ class CallgraphViewer {
         }
     }
 
+    zoomToText() {
+        if (!this.network) {
+            alert('No graph loaded. Please load a DOT file first.');
+            return;
+        }
+
+        // Node font size is 14px, we want text to be at least 12px readable
+        // So we need: 14 * scale >= 12
+        // Therefore: scale >= 12/14 ≈ 0.857
+        const minTextSize = 12;
+        const nodeFontSize = 14;
+        const targetScale = minTextSize / nodeFontSize;
+
+        // Get current position to maintain center
+        const viewPosition = this.network.getViewPosition();
+
+        // Zoom to the calculated scale
+        this.network.moveTo({
+            position: viewPosition,
+            scale: targetScale,
+            animation: {
+                duration: 500,
+                easingFunction: 'easeInOutQuad'
+            }
+        });
+    }
+
     resetLayout() {
         if (!this.network || !this.originalData) return;
 
@@ -1124,7 +1162,6 @@ class CallgraphViewer {
 
     collapseAllNodes() {
         if (!this.network || !this.originalData) {
-            alert('No graph loaded. Please load a DOT file first.');
             return;
         }
 
@@ -1170,14 +1207,10 @@ class CallgraphViewer {
         // Update the graph
         this.updateGraphVisibility();
         this.fitGraph();
-
-        // Show summary
-        alert(`Collapsed graph to show ${entryFunctions.length} entry function(s).\n\nEntry functions are the starting points of your code (functions with no callers).`);
     }
 
     expandAllNodes() {
         if (!this.network) {
-            alert('No graph loaded. Please load a DOT file first.');
             return;
         }
 

@@ -128,10 +128,11 @@ See the [dotgen README](dotgen/README.md) for more options.
     - **Collapse:** Outgoing Calls, Incoming Calls, or All Connections
     - **Expand:** All, Outgoing Calls only, or Incoming Calls only
   - **Double-click a node** to quickly collapse/expand all connections
-- **Help**: Click "💡 Help" button to show the quick guide (close with Esc key or click outside)
-- **Fit to view**: Click "🔍 Fit to View" button to zoom to see the entire graph
-- **Reset**: Click "🔄 Reset Layout" to restore the original graph state
-- **Export**: Click "💾 Export PNG" to save the current view as an image
+- **Help**: Click "Help" button to show the quick guide (close with Esc key or click outside)
+- **Fit to view**: Click "Fit to View" button to zoom to see the entire graph
+- **Zoom to text**: Click "Zoom to Text" button to zoom until text is readable (12px minimum)
+- **Reset**: Click "Reset Layout" to restore the original graph state
+- **Export**: Click "Export PNG" to save the current view as an image
 
 ### Node Colors
 

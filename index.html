@@ -17,34 +17,38 @@
         <div class="controls-panel">
             <div class="file-upload-section">
                 <label for="file-input" class="file-label">
-                    <span class="upload-icon"><i class="fas fa-folder"></i></span>
-                    <span class="upload-text">Choose DOT File</span>
+                    <span class="upload-icon"><i class="fas fa-diagram-project"></i></span>
+                    <span class="upload-text">Generate CallGraph</span>
                 </label>
                 <input type="file" id="file-input" accept=".dot,.gv" />
-                <span class="file-name" id="file-name">No file selected</span>
-                <button id="generate-button" class="btn btn-primary" title="Generate callgraph from Go folder">
-                    <i class="fas fa-rocket"></i> Generate from Go Folder
+                <span class="file-name" id="file-name">No dot file selected</span>
+                <button id="generate-button" class="btn btn-primary" title="Generate DOT file from Go folder">
+                    <i class="fas fa-code"></i> Generate DOT File
                 </button>
+                <span class="file-name" id="generate-status">No file/folder selected</span>
             </div>
 
             <div class="button-group">
-                <button id="collapse-all-button" class="btn btn-primary" title="Collapse all to show only entry functions">
-                    <i class="fas fa-compress"></i> Collapse All
+                <button id="collapse-all-button" class="btn btn-primary" title="Collapse All">
+                    <i class="fas fa-compress"></i>
                 </button>
-                <button id="expand-all-button" class="btn btn-primary" title="Expand all nodes">
-                    <i class="fas fa-expand"></i> Expand All
+                <button id="expand-all-button" class="btn btn-primary" title="Expand All">
+                    <i class="fas fa-expand"></i>
                 </button>
-                <button id="help-button" class="btn btn-secondary" title="Show quick guide">
-                    <i class="fas fa-question-circle"></i> Help
+                <button id="help-button" class="btn btn-secondary" title="Help">
+                    <i class="fas fa-question-circle"></i>
                 </button>
-                <button id="fit-button" class="btn btn-secondary" title="Fit graph to view">
-                    <i class="fas fa-search-plus"></i> Fit to View
+                <button id="fit-button" class="btn btn-secondary" title="Fit to View">
+                    <i class="fas fa-magnifying-glass-minus"></i>
                 </button>
-                <button id="reset-button" class="btn btn-secondary" title="Reset layout">
-                    <i class="fas fa-redo"></i> Reset Layout
+                <button id="zoom-text-button" class="btn btn-secondary" title="Zoom to Text">
+                    <i class="fas fa-magnifying-glass-plus"></i>
                 </button>
-                <button id="export-button" class="btn btn-secondary" title="Export as image">
-                    <i class="fas fa-download"></i> Export PNG
+                <button id="reset-button" class="btn btn-secondary" title="Reset Layout">
+                    <i class="fas fa-redo"></i>
+                </button>
+                <button id="export-button" class="btn btn-secondary" title="Export PNG">
+                    <i class="fas fa-download"></i>
                 </button>
             </div>
 
@@ -68,6 +72,8 @@
                     <ul>
                         <li><strong>Collapse All button</strong> - show only entry functions</li>
                         <li><strong>Expand All button</strong> - show full graph</li>
+                        <li><strong>Fit to View button</strong> - zoom to see entire graph</li>
+                        <li><strong>Zoom to Text button</strong> - zoom to readable text size</li>
                         <li><strong>Right-click nodes</strong> for collapse/expand options</li>
                         <li><strong>Double-click nodes</strong> to collapse/expand all connections</li>
                         <li><strong>Drag nodes</strong> to reposition them</li>
