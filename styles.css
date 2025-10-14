@@ -69,6 +69,7 @@ header h1 {
     gap: 12px;
     flex: 1;
     min-width: 300px;
+    flex-wrap: wrap;
 }
 
 .file-label {

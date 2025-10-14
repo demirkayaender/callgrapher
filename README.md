@@ -2,23 +2,30 @@
 
 A modern, interactive web-based application for visualizing DOT callgraph files with support for node dragging, collapsing subsections, and dynamic exploration.
 
-**✨ New:** Includes `dotgen` - a Go-based tool to generate DOT callgraphs from Go codebases!
+**✨ New:** Built-in Go code analyzer! Select a folder directly in the browser to generate callgraphs on the fly - no command-line tools needed!
 
 ## Project Structure
 
 - **Web Viewer** (`/`): Interactive web application for visualizing DOT files
+- **Browser-based Go Analyzer**: Generate callgraphs from Go folders directly in your browser
 - **DOT Generator** (`/dotgen`): Command-line tool to generate callgraphs from Go code
 
 ## Features
 
+### Visualization
 - **DOT File Support**: Load and parse standard DOT/Graphviz files
+- **Generate from Go Folder**: Select a Go project folder and generate callgraph instantly in the browser
 - **Interactive Visualization**: Drag nodes to reposition them, zoom, and pan
-- **Collapse/Expand**: Double-click nodes to collapse/expand their connections
+- **Smart Collapse/Expand**: 
+  - One-click "Collapse All" to show only entry functions (great for large graphs!)
+  - Granular control: Right-click nodes to collapse/expand outgoing, incoming, or all connections
+- **Context-Aware Menus**: Only shows applicable actions based on node state
 - **Node Details**: Click on any node to view detailed information
 - **Export**: Save your graph as a PNG image
 - **Modern UI**: Beautiful, responsive design with gradient backgrounds
-- **Hierarchical Layout**: Automatic layout of callgraph with proper hierarchy
+- **Left-to-Right Layout**: Horizontal flow for better visibility on wide screens
 - **Real-time Stats**: View node and edge counts
+- **Visual State Indicators**: Border shows outgoing state, background shows incoming state
 
 ## Getting Started
 
@@ -51,13 +58,31 @@ A modern, interactive web-based application for visualizing DOT callgraph files 
    npm start
    ```
 
-2. Your default browser will automatically open to `http://localhost:8080`
+2. Your default browser will automatically open to `http://localhost:3000`
 
-Alternatively, you can simply open `index.html` in a modern web browser (Chrome, Firefox, Safari, Edge).
+**Browser Requirements:**
+- For **folder analysis** feature: Chrome, Edge, or other Chromium-based browsers (requires File System Access API)
+- For **DOT file viewing**: Any modern browser (Chrome, Firefox, Safari, Edge)
 
-## Complete Workflow: Analyze Go Code → Visualize
+## Usage
 
-### Step 1: Generate a Callgraph from Go Code
+### Option 1: Generate Callgraph Directly in Browser (Easiest!)
+
+1. Click the **"🚀 Generate from Go Folder"** button
+2. Select your Go project folder
+3. The callgraph will be automatically generated and displayed!
+
+**Features:**
+- ✅ No command-line tools needed
+- ✅ Works entirely in the browser
+- ✅ Instant visualization
+- ✅ Automatically excludes `_test.go` files and `vendor/` directories
+
+### Option 2: Use Pre-generated DOT Files
+
+If you have existing DOT files or prefer using the command-line tool:
+
+#### Step 1: Generate a Callgraph from Go Code (Optional)
 
 Navigate to the `dotgen` directory and build the tool:
 
@@ -80,24 +105,15 @@ make example
 
 See the [dotgen README](dotgen/README.md) for more options.
 
-### Step 2: Visualize in the Web App
+#### Step 2: Load DOT File in the Web Viewer
 
-1. Copy your generated `.dot` file to the main directory (or remember its location)
-2. Start the web viewer:
+1. Start the web viewer (if not already running):
    ```bash
-   cd ..  # back to main directory
    npm start
    ```
-3. Click "Choose DOT File" and select your generated callgraph
-4. Explore interactively!
-
-## Usage
-
-### Loading a Callgraph
-
-1. Click the "Choose DOT File" button
-2. Select a `.dot` or `.gv` file from your computer
-3. The graph will automatically render
+2. Click "📁 Choose DOT File" button
+3. Select your generated `.dot` file
+4. The graph will automatically render - explore interactively!
 
 ### Interacting with the Graph
 
@@ -106,6 +122,8 @@ See the [dotgen README](dotgen/README.md) for more options.
 - **Zoom**: Use mouse wheel to zoom in/out
 - **View details**: Click once on a node to see its details in the side panel
 - **Collapse/Expand**: 
+  - **📦 Collapse All** button: Collapses entire graph to show only entry functions (starting points with no callers)
+  - **📂 Expand All** button: Expands all nodes to show full graph
   - **Right-click a node** to open the context menu with options:
     - **Collapse:** Outgoing Calls, Incoming Calls, or All Connections
     - **Expand:** All, Outgoing Calls only, or Incoming Calls only

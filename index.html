@@ -21,9 +21,18 @@
                 </label>
                 <input type="file" id="file-input" accept=".dot,.gv" />
                 <span class="file-name" id="file-name">No file selected</span>
+                <button id="generate-button" class="btn btn-primary" title="Generate callgraph from Go folder">
+                    🚀 Generate from Go Folder
+                </button>
             </div>
 
             <div class="button-group">
+                <button id="collapse-all-button" class="btn btn-primary" title="Collapse all to show only entry functions">
+                    📦 Collapse All
+                </button>
+                <button id="expand-all-button" class="btn btn-primary" title="Expand all nodes">
+                    📂 Expand All
+                </button>
                 <button id="help-button" class="btn btn-secondary" title="Show quick guide">
                     💡 Help
                 </button>
@@ -56,9 +65,11 @@
                 <div class="help-content">
                     <h3>💡 Quick Guide</h3>
                     <ul>
-                        <li><strong>Drag nodes</strong> to reposition them</li>
+                        <li><strong>Collapse All button</strong> - show only entry functions</li>
+                        <li><strong>Expand All button</strong> - show full graph</li>
                         <li><strong>Right-click nodes</strong> for collapse/expand options</li>
-                        <li><strong>Double-click nodes</strong> to collapse/expand all</li>
+                        <li><strong>Double-click nodes</strong> to collapse/expand all connections</li>
+                        <li><strong>Drag nodes</strong> to reposition them</li>
                         <li><strong>Scroll</strong> to zoom in/out</li>
                         <li><strong>Drag canvas</strong> to pan around</li>
                         <li><strong>Click node</strong> to see details</li>
@@ -81,6 +92,7 @@
     </div>
 
     <script src="node_modules/vis-network/standalone/umd/vis-network.min.js"></script>
+    <script src="go-parser.js"></script>
     <script src="app.js"></script>
 </body>
 </html>

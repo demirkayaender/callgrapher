@@ -24,7 +24,12 @@ class CallgraphViewer {
         const fileInput = document.getElementById('file-input');
         fileInput.addEventListener('change', (e) => this.handleFileUpload(e));
 
+        // Generate from folder button
+        document.getElementById('generate-button').addEventListener('click', () => this.handleGenerateFromFolder());
+
         // Control buttons
+        document.getElementById('collapse-all-button').addEventListener('click', () => this.collapseAllNodes());
+        document.getElementById('expand-all-button').addEventListener('click', () => this.expandAllNodes());
         document.getElementById('help-button').addEventListener('click', () => this.showHelpOverlay());
         document.getElementById('fit-button').addEventListener('click', () => this.fitGraph());
         document.getElementById('reset-button').addEventListener('click', () => this.resetLayout());
@@ -248,6 +253,60 @@ class CallgraphViewer {
         }
     }
 
+    async handleGenerateFromFolder() {
+        try {
+            // Check if File System Access API is supported
+            if (!('showDirectoryPicker' in window)) {
+                alert('Your browser does not support folder selection. Please use Chrome, Edge, or another Chromium-based browser.');
+                return;
+            }
+
+            // Hide help overlay
+            this.hideHelpOverlay();
+
+            // Show loading indicator
+            document.getElementById('file-name').textContent = 'Scanning folder...';
+
+            // Prompt user to select a directory
+            const dirHandle = await window.showDirectoryPicker({
+                mode: 'read'
+            });
+
+            document.getElementById('file-name').textContent = `Analyzing: ${dirHandle.name}`;
+
+            // Create parser and parse the directory
+            const parser = new GoParser();
+            const callGraph = await parser.parseDirectory(dirHandle);
+
+            if (callGraph.functions.length === 0) {
+                alert('No Go functions found in the selected folder.');
+                document.getElementById('file-name').textContent = 'No functions found';
+                return;
+            }
+
+            document.getElementById('file-name').textContent = `Generating graph for ${dirHandle.name}...`;
+
+            // Generate DOT format
+            const dotContent = parser.generateDOT(callGraph);
+
+            // Update UI
+            document.getElementById('file-name').textContent = `${dirHandle.name} (${callGraph.functions.length} functions, ${callGraph.edges.length} calls)`;
+
+            // Parse and display the generated DOT
+            this.parseDotFile(dotContent);
+
+        } catch (error) {
+            if (error.name === 'AbortError') {
+                // User cancelled the picker
+                document.getElementById('file-name').textContent = 'Cancelled';
+            } else {
+                console.error('Error generating callgraph:', error);
+                alert(`Error: ${error.message}`);
+                document.getElementById('file-name').textContent = 'Error generating graph';
+            }
+        }
+    }
+
     readFile(file) {
         return new Promise((resolve, reject) => {
             const reader = new FileReader();
@@ -338,7 +397,7 @@ class CallgraphViewer {
             layout: {
                 hierarchical: {
                     enabled: true,
-                    direction: 'UD',
+                    direction: 'LR',
                     sortMethod: 'directed',
                     levelSeparation: 150,
                     nodeSpacing: 150
@@ -638,10 +697,41 @@ class CallgraphViewer {
             }
         });
 
-        const affectedNodeIds = new Set([...outgoingNodeIds, ...incomingNodeIds]);
-
         // Show previously hidden nodes (if they're not hidden by other collapses)
-        affectedNodeIds.forEach((id) => {
+        // For outgoing nodes: auto-collapse their outgoing calls for step-by-step exploration
+        outgoingNodeIds.forEach((id) => {
+            if (!this.isNodeCollapsedByOthers(id)) {
+                this.hiddenNodes.delete(id);
+                
+                // Automatically collapse outgoing calls for newly revealed child nodes
+                // This creates a step-by-step exploration experience
+                if (!this.collapsedNodes.has(id)) {
+                    const allEdges = this.originalData.edges.get();
+                    const hasOutgoing = allEdges.some(e => e.from === id);
+                    
+                    if (hasOutgoing) {
+                        this.collapsedNodes.set(id, {
+                            outgoing: true,
+                            incoming: false
+                        });
+                    }
+                }
+                
+                // Show edges for this node if appropriate
+                const nodeEdges = this.originalData.edges.get({
+                    filter: (edge) => edge.from === id || edge.to === id
+                });
+                
+                nodeEdges.forEach((edge) => {
+                    if (!this.isEdgeHiddenByCollapse(edge)) {
+                        this.hiddenEdges.delete(edge.id);
+                    }
+                });
+            }
+        });
+        
+        // For incoming nodes: don't auto-collapse, just show them
+        incomingNodeIds.forEach((id) => {
             if (!this.isNodeCollapsedByOthers(id)) {
                 this.hiddenNodes.delete(id);
                 
@@ -1029,6 +1119,76 @@ class CallgraphViewer {
                 URL.revokeObjectURL(url);
             });
         }
+    }
+
+    collapseAllNodes() {
+        if (!this.network || !this.originalData) {
+            alert('No graph loaded. Please load a DOT file first.');
+            return;
+        }
+
+        // Find entry functions (nodes with no incoming edges)
+        const allEdges = this.originalData.edges.get();
+        const nodesWithIncoming = new Set(allEdges.map(e => e.to));
+        const allNodes = this.originalData.nodes.get();
+        const entryFunctions = allNodes.filter(node => !nodesWithIncoming.has(node.id));
+        const entryFunctionIds = new Set(entryFunctions.map(n => n.id));
+
+        console.log(`Found ${entryFunctions.length} entry function(s):`, entryFunctions.map(n => n.label || n.id));
+
+        // Clear existing collapse states
+        this.collapsedNodes.clear();
+        this.hiddenNodes.clear();
+        this.hiddenEdges.clear();
+
+        // Hide all non-entry nodes
+        allNodes.forEach(node => {
+            if (!entryFunctionIds.has(node.id)) {
+                this.hiddenNodes.add(node.id);
+            }
+        });
+
+        // Hide ALL edges (we want entry functions as isolated nodes)
+        allEdges.forEach(edge => {
+            this.hiddenEdges.add(edge.id);
+        });
+
+        // Mark entry functions as having outgoing collapsed (for visual indicator)
+        entryFunctions.forEach(node => {
+            const nodeId = node.id;
+            const hasOutgoing = allEdges.some(e => e.from === nodeId);
+            
+            if (hasOutgoing) {
+                this.collapsedNodes.set(nodeId, { 
+                    outgoing: true, 
+                    incoming: false 
+                });
+            }
+        });
+
+        // Update the graph
+        this.updateGraphVisibility();
+        this.fitGraph();
+
+        // Show summary
+        alert(`Collapsed graph to show ${entryFunctions.length} entry function(s).\n\nEntry functions are the starting points of your code (functions with no callers).`);
+    }
+
+    expandAllNodes() {
+        if (!this.network) {
+            alert('No graph loaded. Please load a DOT file first.');
+            return;
+        }
+
+        // Clear all collapsed states
+        this.collapsedNodes.clear();
+        this.hiddenNodes.clear();
+        this.hiddenEdges.clear();
+        this.lastActionNode = null;
+
+        // Update the graph
+        this.updateGraphVisibility();
+        this.fitGraph();
     }
 
     updateStats() {
