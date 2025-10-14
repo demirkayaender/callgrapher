@@ -22,13 +22,36 @@
                 </label>
                 <input type="file" id="file-input" accept=".dot,.gv" />
                 <span class="file-name" id="file-name">No dot file selected</span>
+            </div>
+
+            <div class="file-upload-section">
                 <button id="generate-button" class="btn btn-primary" title="Generate DOT file from Go folder">
                     <i class="fas fa-code"></i> Generate DOT File
                 </button>
                 <span class="file-name" id="generate-status">No file/folder selected</span>
             </div>
 
-            <div class="button-group">
+            <div class="spacer"></div>
+
+            <div class="search-container">
+                <i class="fas fa-search search-icon"></i>
+                <input type="text" id="node-search" class="search-input" placeholder="Search nodes..." />
+            </div>
+
+            <div class="info-panel">
+                <div class="info-item">
+                    <span class="info-label">Nodes:</span>
+                    <span id="node-count" class="info-value">0</span>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">Edges:</span>
+                    <span id="edge-count" class="info-value">0</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="graph-container">
+            <div class="toolbar-sidebar">
                 <button id="collapse-all-button" class="btn btn-primary" title="Collapse All">
                     <i class="fas fa-compress"></i>
                 </button>
@@ -54,25 +77,12 @@
                     <i class="fas fa-download"></i>
                 </button>
             </div>
-
-            <div class="info-panel">
-                <div class="info-item">
-                    <span class="info-label">Nodes:</span>
-                    <span id="node-count" class="info-value">0</span>
-                </div>
-                <div class="info-item">
-                    <span class="info-label">Edges:</span>
-                    <span id="edge-count" class="info-value">0</span>
-                </div>
-            </div>
-        </div>
-
-        <div class="graph-container">
             <div id="graph-canvas"></div>
             <div class="help-overlay" id="help-overlay">
                 <div class="help-content">
                     <h3><i class="fas fa-lightbulb"></i> Quick Guide</h3>
                     <ul>
+                        <li><strong>Search bar</strong> - type to find and jump to nodes (prefix match)</li>
                         <li><strong>Click node</strong> to select, <strong>Ctrl/Cmd+click</strong> for multi-select</li>
                         <li><strong>Shift+drag on canvas</strong> to box-select multiple nodes</li>
                         <li><strong>Drag selected nodes</strong> to move them together</li>

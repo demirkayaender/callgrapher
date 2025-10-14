@@ -58,18 +58,28 @@ header h1 {
     background: var(--background);
     border-bottom: 1px solid var(--border);
     display: flex;
-    flex-wrap: wrap;
     gap: 20px;
     align-items: center;
+    flex-wrap: wrap;
 }
 
 .file-upload-section {
     display: flex;
     align-items: center;
     gap: 12px;
-    flex: 1;
-    min-width: 300px;
+    flex: 0 0 auto;
+}
+
+.upload-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
     flex-wrap: wrap;
+}
+
+.spacer {
+    flex: 1;
+    min-width: 20px;
 }
 
 .file-label {
@@ -106,6 +116,42 @@ header h1 {
     display: flex;
     gap: 12px;
     flex-wrap: wrap;
+    align-items: center;
+}
+
+.search-container {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+}
+
+.search-icon {
+    position: absolute;
+    left: 12px;
+    color: var(--text-secondary);
+    pointer-events: none;
+    font-size: 0.9rem;
+}
+
+.search-input {
+    padding: 10px 12px 10px 36px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    font-size: 0.9rem;
+    width: 200px;
+    background: var(--surface);
+    color: var(--text-primary);
+    transition: all 0.2s;
+}
+
+.search-input:focus {
+    outline: none;
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1);
+}
+
+.search-input::placeholder {
+    color: var(--text-secondary);
 }
 
 .btn {
@@ -145,38 +191,64 @@ header h1 {
 
 .info-panel {
     display: flex;
-    gap: 24px;
-    margin-left: auto;
+    flex-direction: row;
+    gap: 20px;
+    flex: 0 0 auto;
+    align-items: center;
 }
 
 .info-item {
     display: flex;
-    flex-direction: column;
+    flex-direction: row;
     align-items: center;
+    gap: 8px;
 }
 
 .info-label {
-    font-size: 0.85rem;
+    font-size: 0.95rem;
     color: var(--text-secondary);
-    margin-bottom: 4px;
+    font-weight: 500;
 }
 
 .info-value {
-    font-size: 1.5rem;
+    font-size: 0.95rem;
     font-weight: 700;
     color: var(--primary-color);
 }
 
 .graph-container {
     position: relative;
-    height: calc(100vh - 350px);
+    height: calc(100vh - 250px);
     min-height: 500px;
     background: var(--surface);
+    display: flex;
+}
+
+.toolbar-sidebar {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 12px 8px;
+    background: var(--background);
+    border-right: 1px solid var(--border);
+    min-width: 60px;
+    align-items: center;
+}
+
+.toolbar-sidebar .btn {
+    width: 44px;
+    height: 44px;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.1rem;
 }
 
 #graph-canvas {
-    width: 100%;
+    flex: 1;
     height: 100%;
+    position: relative;
 }
 
 .help-overlay {
@@ -392,7 +464,6 @@ header h1 {
     }
 
     .info-panel {
-        margin-left: 0;
         justify-content: center;
     }
 

@@ -37,6 +37,9 @@ class CallgraphViewer {
         document.getElementById('zoom-text-button').addEventListener('click', () => this.zoomToText());
         document.getElementById('reset-button').addEventListener('click', () => this.resetLayout());
         document.getElementById('export-button').addEventListener('click', () => this.exportGraph());
+        
+        // Search input
+        document.getElementById('node-search').addEventListener('input', (e) => this.searchNode(e.target.value));
 
         // Help overlay
         document.getElementById('close-help').addEventListener('click', () => this.hideHelpOverlay());
@@ -1260,6 +1263,69 @@ class CallgraphViewer {
                 easingFunction: 'easeInOutQuad'
             }
         });
+    }
+
+    searchNode(query) {
+        if (!this.network || !this.originalData) {
+            return;
+        }
+
+        // If query is empty, do nothing
+        if (!query || query.trim() === '') {
+            return;
+        }
+
+        const searchTerm = query.trim().toLowerCase();
+
+        // Get all nodes (from original data to search even hidden nodes)
+        const allNodes = this.originalData.nodes.get();
+
+        // Filter nodes whose labels match the prefix (case-insensitive)
+        const matches = allNodes.filter(node => {
+            const label = node.label ? node.label.toLowerCase() : '';
+            return label.startsWith(searchTerm);
+        });
+
+        // If no matches, do nothing
+        if (matches.length === 0) {
+            return;
+        }
+
+        // Sort alphabetically by label
+        matches.sort((a, b) => {
+            const labelA = a.label ? a.label.toLowerCase() : '';
+            const labelB = b.label ? b.label.toLowerCase() : '';
+            return labelA.localeCompare(labelB);
+        });
+
+        // Get the first match
+        const targetNode = matches[0];
+
+        // Get node position
+        const positions = this.network.getPositions([targetNode.id]);
+        const nodePosition = positions[targetNode.id];
+
+        if (!nodePosition) {
+            return;
+        }
+
+        // Calculate zoom level for 12px text (same as zoomToText)
+        const minTextSize = 12;
+        const nodeFontSize = 14;
+        const targetScale = minTextSize / nodeFontSize;
+
+        // Center and zoom to the node
+        this.network.moveTo({
+            position: nodePosition,
+            scale: targetScale,
+            animation: {
+                duration: 500,
+                easingFunction: 'easeInOutQuad'
+            }
+        });
+
+        // Optionally select the node to highlight it
+        this.network.selectNodes([targetNode.id]);
     }
 
     resetLayout() {
