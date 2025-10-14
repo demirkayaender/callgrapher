@@ -117,10 +117,13 @@ See the [dotgen README](dotgen/README.md) for more options.
 
 ### Interacting with the Graph
 
-- **Select nodes**: Click a node to select it, or hold **Ctrl/Cmd** and click to select multiple nodes
+- **Select nodes**: 
+  - Click a node to select it
+  - Hold **Ctrl/Cmd** and click to add/remove nodes from selection
+  - **Shift+drag on canvas** to box-select multiple nodes in an area
 - **Move nodes**: Drag selected nodes to reposition them (multiple selected nodes move together)
 - **Deselect**: Click on empty canvas to deselect all nodes
-- **Pan the view**: Click and drag on empty space to move the entire graph
+- **Pan the view**: Drag on empty space to move the entire graph (without Shift)
 - **Zoom**: Use mouse wheel to zoom in/out
 - **View details**: Click once on a node to see its details in the side panel
 - **Collapse/Expand**: 

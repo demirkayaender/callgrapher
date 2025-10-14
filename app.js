@@ -433,7 +433,8 @@ class CallgraphViewer {
                     enabled: true,
                     type: 'cubicBezier',
                     roundness: 0.5
-                }
+                },
+                physics: false  // Edges don't affect node positions
             }
         };
 
@@ -460,8 +461,12 @@ class CallgraphViewer {
             this.originalPositions.set(node.id, { x: position.x, y: position.y });
         });
         
-        // Disable physics after initial layout to prevent wiggles
-        this.network.setOptions({ physics: { enabled: false } });
+        // Disable physics and hierarchical constraints after initial layout
+        // This allows free movement in both X and Y directions
+        this.network.setOptions({ 
+            physics: { enabled: false },
+            layout: { hierarchical: { enabled: false } }
+        });
     }
 
     setupNetworkEvents() {
@@ -1052,6 +1057,13 @@ class CallgraphViewer {
                 width: 2,
                 smooth: { type: 'cubicBezier', roundness: 0.5 }
             });
+        });
+        
+        // Ensure physics and hierarchical layout remain disabled after update
+        // This prevents non-selected nodes from moving when dragging selected ones
+        this.network.setOptions({ 
+            physics: { enabled: false },
+            layout: { hierarchical: { enabled: false } }
         });
     }
 
