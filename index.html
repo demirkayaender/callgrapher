@@ -4,46 +4,47 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Callgraph Viewer</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css" integrity="sha512-z3gLpd7yknf1YoNbCzqRKc4qyor8gaKU1qmn+CShxbuBusANI9QpRohGBreCFkKxLhei6S9CQXFEbbKuqLg0DA==" crossorigin="anonymous" referrerpolicy="no-referrer" />
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
     <div class="container">
         <header>
-            <h1>📊 Callgraph Viewer</h1>
+            <h1><i class="fas fa-project-diagram"></i> Callgraph Viewer</h1>
             <p class="subtitle">Interactive visualization of DOT callgraphs</p>
         </header>
 
         <div class="controls-panel">
             <div class="file-upload-section">
                 <label for="file-input" class="file-label">
-                    <span class="upload-icon">📁</span>
+                    <span class="upload-icon"><i class="fas fa-folder"></i></span>
                     <span class="upload-text">Choose DOT File</span>
                 </label>
                 <input type="file" id="file-input" accept=".dot,.gv" />
                 <span class="file-name" id="file-name">No file selected</span>
                 <button id="generate-button" class="btn btn-primary" title="Generate callgraph from Go folder">
-                    🚀 Generate from Go Folder
+                    <i class="fas fa-rocket"></i> Generate from Go Folder
                 </button>
             </div>
 
             <div class="button-group">
                 <button id="collapse-all-button" class="btn btn-primary" title="Collapse all to show only entry functions">
-                    📦 Collapse All
+                    <i class="fas fa-compress"></i> Collapse All
                 </button>
                 <button id="expand-all-button" class="btn btn-primary" title="Expand all nodes">
-                    📂 Expand All
+                    <i class="fas fa-expand"></i> Expand All
                 </button>
                 <button id="help-button" class="btn btn-secondary" title="Show quick guide">
-                    💡 Help
+                    <i class="fas fa-question-circle"></i> Help
                 </button>
                 <button id="fit-button" class="btn btn-secondary" title="Fit graph to view">
-                    🔍 Fit to View
+                    <i class="fas fa-search-plus"></i> Fit to View
                 </button>
                 <button id="reset-button" class="btn btn-secondary" title="Reset layout">
-                    🔄 Reset Layout
+                    <i class="fas fa-redo"></i> Reset Layout
                 </button>
                 <button id="export-button" class="btn btn-secondary" title="Export as image">
-                    💾 Export PNG
+                    <i class="fas fa-download"></i> Export PNG
                 </button>
             </div>
 
@@ -63,7 +64,7 @@
             <div id="graph-canvas"></div>
             <div class="help-overlay" id="help-overlay">
                 <div class="help-content">
-                    <h3>💡 Quick Guide</h3>
+                    <h3><i class="fas fa-lightbulb"></i> Quick Guide</h3>
                     <ul>
                         <li><strong>Collapse All button</strong> - show only entry functions</li>
                         <li><strong>Expand All button</strong> - show full graph</li>

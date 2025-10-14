@@ -95,25 +95,26 @@ class CallgraphViewer {
         const menu = document.createElement('div');
         menu.id = 'context-menu';
         menu.className = 'context-menu';
+        // Initial template (will be dynamically updated in showContextMenu)
         menu.innerHTML = `
             <div class="context-menu-item" data-action="collapse-outgoing">
-                ⬇️ Collapse Outgoing Calls
+                <i class="fas fa-arrow-down"></i> Collapse Outgoing Calls
             </div>
             <div class="context-menu-item" data-action="collapse-incoming">
-                ⬆️ Collapse Incoming Calls
+                <i class="fas fa-arrow-up"></i> Collapse Incoming Calls
             </div>
             <div class="context-menu-item" data-action="collapse-all">
-                📦 Collapse All Connections
+                <i class="fas fa-compress"></i> Collapse All Connections
             </div>
             <div class="context-menu-separator"></div>
             <div class="context-menu-item" data-action="expand-all">
-                📂 Expand All
+                <i class="fas fa-expand"></i> Expand All
             </div>
             <div class="context-menu-item" data-action="expand-outgoing">
-                ⬇️ Expand Outgoing Calls
+                <i class="fas fa-arrow-down"></i> Expand Outgoing Calls
             </div>
             <div class="context-menu-item" data-action="expand-incoming">
-                ⬆️ Expand Incoming Calls
+                <i class="fas fa-arrow-up"></i> Expand Incoming Calls
             </div>
         `;
         document.body.appendChild(menu);
@@ -147,13 +148,13 @@ class CallgraphViewer {
         
         // Collapse options (only show if not already collapsed AND connections exist)
         if (!collapseState.outgoing && hasOutgoing) {
-            menuItems.push('<div class="context-menu-item" data-action="collapse-outgoing">⬇️ Collapse Outgoing Calls</div>');
+            menuItems.push('<div class="context-menu-item" data-action="collapse-outgoing"><i class="fas fa-arrow-down"></i> Collapse Outgoing Calls</div>');
         }
         if (!collapseState.incoming && hasIncoming) {
-            menuItems.push('<div class="context-menu-item" data-action="collapse-incoming">⬆️ Collapse Incoming Calls</div>');
+            menuItems.push('<div class="context-menu-item" data-action="collapse-incoming"><i class="fas fa-arrow-up"></i> Collapse Incoming Calls</div>');
         }
         if ((!collapseState.outgoing && hasOutgoing) || (!collapseState.incoming && hasIncoming)) {
-            menuItems.push('<div class="context-menu-item" data-action="collapse-all">📦 Collapse All Connections</div>');
+            menuItems.push('<div class="context-menu-item" data-action="collapse-all"><i class="fas fa-compress"></i> Collapse All Connections</div>');
         }
         
         // Separator if we have both collapse and expand options
@@ -165,18 +166,18 @@ class CallgraphViewer {
         
         // Expand options (only show if something is collapsed AND those connections exist)
         if ((collapseState.outgoing && hasOutgoing) || (collapseState.incoming && hasIncoming)) {
-            menuItems.push('<div class="context-menu-item" data-action="expand-all">📂 Expand All</div>');
+            menuItems.push('<div class="context-menu-item" data-action="expand-all"><i class="fas fa-expand"></i> Expand All</div>');
         }
         if (collapseState.outgoing && hasOutgoing) {
-            menuItems.push('<div class="context-menu-item" data-action="expand-outgoing">⬇️ Expand Outgoing Calls</div>');
+            menuItems.push('<div class="context-menu-item" data-action="expand-outgoing"><i class="fas fa-arrow-down"></i> Expand Outgoing Calls</div>');
         }
         if (collapseState.incoming && hasIncoming) {
-            menuItems.push('<div class="context-menu-item" data-action="expand-incoming">⬆️ Expand Incoming Calls</div>');
+            menuItems.push('<div class="context-menu-item" data-action="expand-incoming"><i class="fas fa-arrow-up"></i> Expand Incoming Calls</div>');
         }
         
         // If no menu items, show "No Connections" message
         if (menuItems.length === 0) {
-            menuItems.push('<div class="context-menu-item" style="color: #9ca3af; cursor: default; pointer-events: none;">📭 No Connections</div>');
+            menuItems.push('<div class="context-menu-item" style="color: #9ca3af; cursor: default; pointer-events: none;"><i class="fas fa-ban"></i> No Connections</div>');
         }
         
         // Update menu content
