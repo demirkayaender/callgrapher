@@ -1,0 +1,36 @@
+# Dependencies
+node_modules/
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Build outputs
+dist/
+build/
+
+# Temporary files
+tmp/
+temp/
+
+# Go binaries (from dotgen/)
+dotgen/dotgen
+dotgen/dotgen.exe
+dotgen/bin/
+
+# Generated callgraphs (except examples)
+*.dot
+!example.dot
+!example-go-callgraph.dot
+

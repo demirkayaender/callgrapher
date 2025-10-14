@@ -1,0 +1,18 @@
+# Binaries
+dotgen
+dotgen.exe
+*.exe
+
+# Build artifacts
+*.o
+*.a
+*.so
+
+# Test output
+*.dot
+callgraph.dot
+
+# Go workspace
+go.work
+go.work.sum
+

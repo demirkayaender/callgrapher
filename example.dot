@@ -1,0 +1,110 @@
+digraph callgraph {
+    // Example callgraph demonstrating various function calls
+    // This represents a simple web application structure
+    
+    rankdir=TB;
+    node [shape=box, style=rounded];
+    
+    // Entry points
+    main [label="main()\nApplication Entry", style="filled", fillcolor="lightgreen"];
+    
+    // Core functions
+    main -> initApp [label="initialize"];
+    main -> startServer [label="startup"];
+    main -> handleRequests [label="main loop"];
+    main -> shutdown [label="cleanup"];
+    
+    // Initialization subsystem
+    initApp -> loadConfig;
+    initApp -> setupDatabase;
+    initApp -> initializeRoutes;
+    initApp -> setupMiddleware;
+    
+    loadConfig -> parseConfigFile;
+    loadConfig -> validateConfig;
+    loadConfig -> setEnvironmentVars;
+    
+    setupDatabase -> connectDB;
+    setupDatabase -> runMigrations;
+    setupDatabase -> seedData;
+    
+    // Server subsystem
+    startServer -> createHTTPServer;
+    startServer -> bindPort;
+    startServer -> registerRoutes;
+    
+    handleRequests -> routeRequest;
+    handleRequests -> authenticate;
+    handleRequests -> processRequest;
+    handleRequests -> sendResponse;
+    
+    // Request processing
+    routeRequest -> parseURL;
+    routeRequest -> matchRoute;
+    routeRequest -> loadController;
+    
+    authenticate -> checkToken;
+    authenticate -> validateUser;
+    authenticate -> loadPermissions;
+    
+    processRequest -> getUserHandler;
+    processRequest -> getPostHandler;
+    processRequest -> updateHandler;
+    processRequest -> deleteHandler;
+    
+    // User operations
+    getUserHandler -> queryDatabase;
+    getUserHandler -> formatUserData;
+    getUserHandler -> cacheResult;
+    
+    getPostHandler -> queryDatabase;
+    getPostHandler -> formatPostData;
+    getPostHandler -> populateAuthor;
+    
+    updateHandler -> validateInput;
+    updateHandler -> checkPermissions;
+    updateHandler -> updateDatabase;
+    updateHandler -> invalidateCache;
+    
+    deleteHandler -> validateInput;
+    deleteHandler -> checkPermissions;
+    deleteHandler -> softDelete;
+    deleteHandler -> invalidateCache;
+    
+    // Database operations
+    queryDatabase -> buildQuery;
+    queryDatabase -> executeQuery;
+    queryDatabase -> parseResults;
+    
+    updateDatabase -> buildUpdateQuery;
+    updateDatabase -> executeQuery;
+    updateDatabase -> logChange;
+    
+    // Response handling
+    sendResponse -> serializeData;
+    sendResponse -> setHeaders;
+    sendResponse -> compressResponse;
+    sendResponse -> writeResponse;
+    
+    // Cleanup
+    shutdown -> closeConnections;
+    shutdown -> flushCache;
+    shutdown -> saveState;
+    shutdown -> exitGracefully;
+    
+    closeConnections -> closeDatabaseConnection;
+    closeConnections -> closeRedisConnection;
+    closeConnections -> closeHTTPServer;
+    
+    // Utility functions used by multiple components
+    validateInput -> sanitizeInput;
+    validateInput -> checkRequired;
+    validateInput -> validateTypes;
+    
+    checkPermissions -> loadUserRoles;
+    checkPermissions -> evaluateRules;
+    
+    invalidateCache -> clearCacheEntry;
+    invalidateCache -> notifyCacheNodes;
+}
+

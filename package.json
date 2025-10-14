@@ -1,0 +1,24 @@
+{
+  "name": "callgraph-viewer",
+  "version": "1.0.0",
+  "description": "Interactive web-based callgraph viewer with DOT file support",
+  "main": "index.html",
+  "scripts": {
+    "start": "npx http-server -p 3000 -o"
+  },
+  "keywords": [
+    "callgraph",
+    "dot",
+    "graphviz",
+    "visualization"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "vis-network": "^9.1.9"
+  },
+  "devDependencies": {
+    "http-server": "^14.1.1"
+  }
+}
+

@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Callgraph Viewer</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>📊 Callgraph Viewer</h1>
+            <p class="subtitle">Interactive visualization of DOT callgraphs</p>
+        </header>
+
+        <div class="controls-panel">
+            <div class="file-upload-section">
+                <label for="file-input" class="file-label">
+                    <span class="upload-icon">📁</span>
+                    <span class="upload-text">Choose DOT File</span>
+                </label>
+                <input type="file" id="file-input" accept=".dot,.gv" />
+                <span class="file-name" id="file-name">No file selected</span>
+            </div>
+
+            <div class="button-group">
+                <button id="help-button" class="btn btn-secondary" title="Show quick guide">
+                    💡 Help
+                </button>
+                <button id="fit-button" class="btn btn-secondary" title="Fit graph to view">
+                    🔍 Fit to View
+                </button>
+                <button id="reset-button" class="btn btn-secondary" title="Reset layout">
+                    🔄 Reset Layout
+                </button>
+                <button id="export-button" class="btn btn-secondary" title="Export as image">
+                    💾 Export PNG
+                </button>
+            </div>
+
+            <div class="info-panel">
+                <div class="info-item">
+                    <span class="info-label">Nodes:</span>
+                    <span id="node-count" class="info-value">0</span>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">Edges:</span>
+                    <span id="edge-count" class="info-value">0</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="graph-container">
+            <div id="graph-canvas"></div>
+            <div class="help-overlay" id="help-overlay">
+                <div class="help-content">
+                    <h3>💡 Quick Guide</h3>
+                    <ul>
+                        <li><strong>Drag nodes</strong> to reposition them</li>
+                        <li><strong>Right-click nodes</strong> for collapse/expand options</li>
+                        <li><strong>Double-click nodes</strong> to collapse/expand all</li>
+                        <li><strong>Scroll</strong> to zoom in/out</li>
+                        <li><strong>Drag canvas</strong> to pan around</li>
+                        <li><strong>Click node</strong> to see details</li>
+                        <li><strong>Press Esc</strong> or <strong>click outside</strong> to close this guide</li>
+                    </ul>
+                    <button id="close-help" class="btn btn-primary">Got it!</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="detail-panel" id="detail-panel">
+            <div class="detail-header">
+                <h3>Node Details</h3>
+                <button id="close-detail" class="btn-close">×</button>
+            </div>
+            <div class="detail-content" id="detail-content">
+                <p>Select a node to view details</p>
+            </div>
+        </div>
+    </div>
+
+    <script src="node_modules/vis-network/standalone/umd/vis-network.min.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>
+
