@@ -378,8 +378,10 @@ class CallgraphViewer {
                     },
                     borderWidth: 2,
                     shape: 'box',
-                    margin: 10,
-                    widthConstraint: { minimum: 100, maximum: 200 }
+                    margin: 5,
+                    widthConstraint: { minimum: 80, maximum: 150 },
+                    physics: true,
+                    mass: 1
                 });
             });
 
@@ -390,7 +392,7 @@ class CallgraphViewer {
                     arrows: { to: { enabled: true, scaleFactor: 0.8 } },
                     color: { color: '#94a3b8', highlight: '#4f46e5' },
                     width: 2,
-                    smooth: { type: 'cubicBezier', roundness: 0.5 }
+                    smooth: { type: 'cubicBezier', roundness: 0.2 }
                 });
             });
 
@@ -416,14 +418,15 @@ class CallgraphViewer {
                 solver: 'hierarchicalRepulsion',
                 hierarchicalRepulsion: {
                     centralGravity: 0.0,
-                    springLength: 150,
+                    springLength: 90,
                     springConstant: 0.01,
-                    nodeDistance: 200,
-                    damping: 0.09
+                    nodeDistance: 100,
+                    damping: 0.09,
+                    avoidOverlap: 0.3
                 },
                 stabilization: {
                     enabled: true,
-                    iterations: 200
+                    iterations: 300
                 }
             },
             layout: {
@@ -431,8 +434,9 @@ class CallgraphViewer {
                     enabled: true,
                     direction: 'LR',
                     sortMethod: 'directed',
-                    levelSeparation: 150,
-                    nodeSpacing: 150
+                    levelSeparation: 90,
+                    nodeSpacing: 85,
+                    treeSpacing: 130
                 }
             },
             interaction: {
@@ -452,7 +456,7 @@ class CallgraphViewer {
                 smooth: {
                     enabled: true,
                     type: 'cubicBezier',
-                    roundness: 0.5
+                    roundness: 0.2
                 },
                 physics: false  // Edges don't affect node positions
             }
