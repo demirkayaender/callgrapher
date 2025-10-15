@@ -546,13 +546,18 @@ class CallgraphViewer {
             layout: { hierarchical: { enabled: false } }
         });
         
-        // Remove any hierarchical constraints from nodes to allow free X movement
+        // Remove any hierarchical constraints from nodes to allow free X and Y movement
+        // Must set both fixed and physics properties
         this.nodes.forEach((node) => {
             this.nodes.update({
                 id: node.id,
-                fixed: false  // Ensure nodes can move freely in all directions
+                fixed: false,
+                physics: false
             });
         });
+        
+        // Force a redraw to ensure constraints are removed
+        this.network.redraw();
     }
 
     setupNetworkEvents() {
@@ -1370,6 +1375,20 @@ class CallgraphViewer {
             physics: { enabled: false },
             layout: { hierarchical: { enabled: false } }
         });
+        
+        // Remove any hierarchical constraints from nodes to ensure free X and Y movement
+        // This is critical after operations like hide/show, collapse/expand, or search
+        // Must set both fixed and physics properties
+        this.nodes.forEach((node) => {
+            this.nodes.update({
+                id: node.id,
+                fixed: false,
+                physics: false
+            });
+        });
+        
+        // Force a redraw to ensure constraints are removed
+        this.network.redraw();
     }
 
     fitGraph() {
@@ -1624,18 +1643,19 @@ class CallgraphViewer {
             });
         });
 
-        // Re-enable hierarchical layout and physics to redistribute nodes
+        // Use regular physics (not hierarchical) to redistribute nodes
+        // This prevents hierarchical constraints from being applied
         this.network.setOptions({
             physics: {
                 enabled: true,
-                solver: 'hierarchicalRepulsion',
-                hierarchicalRepulsion: {
-                    centralGravity: 0.0,
-                    springLength: 90,
-                    springConstant: 0.01,
-                    nodeDistance: 100,
-                    damping: 0.09,
-                    avoidOverlap: 0.3
+                solver: 'forceAtlas2Based',
+                forceAtlas2Based: {
+                    gravitationalConstant: -50,
+                    centralGravity: 0.01,
+                    springLength: 100,
+                    springConstant: 0.08,
+                    damping: 0.4,
+                    avoidOverlap: 0.5
                 },
                 stabilization: {
                     enabled: true,
@@ -1644,12 +1664,7 @@ class CallgraphViewer {
             },
             layout: {
                 hierarchical: {
-                    enabled: true,
-                    direction: 'LR',
-                    sortMethod: 'directed',
-                    levelSeparation: 90,
-                    nodeSpacing: 85,
-                    treeSpacing: 130
+                    enabled: false  // Keep hierarchical disabled
                 }
             }
         });
@@ -1670,13 +1685,18 @@ class CallgraphViewer {
                 layout: { hierarchical: { enabled: false } }
             });
             
-            // Remove any hierarchical constraints from nodes to allow free X movement
+            // Remove any hierarchical constraints from nodes to allow free X and Y movement
+            // Must set both fixed and physics properties
             this.nodes.forEach((node) => {
                 this.nodes.update({
                     id: node.id,
-                    fixed: false  // Ensure nodes can move freely in all directions
+                    fixed: false,
+                    physics: false
                 });
             });
+            
+            // Force a redraw to ensure constraints are removed
+            this.network.redraw();
 
             this.fitGraph();
         });
