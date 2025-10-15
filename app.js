@@ -40,6 +40,19 @@ class CallgraphViewer {
         
         // Search input
         document.getElementById('node-search').addEventListener('input', (e) => this.searchNode(e.target.value));
+        
+        // Search input - Enter key to hide others
+        document.getElementById('node-search').addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                const query = e.target.value;
+                const matchedNode = this.findMatchingNode(query);
+                if (matchedNode) {
+                    this.lastActionNode = matchedNode.id;
+                    this.hideOthers(matchedNode.id);
+                    this.updateStats();
+                }
+            }
+        });
 
         // Help overlay
         document.getElementById('close-help').addEventListener('click', () => this.hideHelpOverlay());
@@ -51,13 +64,42 @@ class CallgraphViewer {
             }
         });
         
-        // Close help overlay with Esc key
+        // Global keyboard shortcuts
         document.addEventListener('keydown', (e) => {
+            // Don't trigger shortcuts if user is typing in an input field (except Escape)
+            if ((e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') && e.key !== 'Escape' && e.key !== 'Esc') {
+                return;
+            }
+            
+            // Close help overlay with Esc key
             if (e.key === 'Escape' || e.key === 'Esc') {
                 const overlay = document.getElementById('help-overlay');
                 if (overlay && !overlay.classList.contains('hidden')) {
                     this.hideHelpOverlay();
                 }
+            }
+            
+            // Hide others with 'H' key
+            if (e.key === 'h' || e.key === 'H') {
+                if (this.network) {
+                    const selectedNodes = this.network.getSelectedNodes();
+                    if (selectedNodes.length === 1) {
+                        // Only works with single node selection
+                        this.lastActionNode = selectedNodes[0];
+                        this.hideOthers(selectedNodes[0]);
+                        this.updateStats();
+                    }
+                }
+            }
+            
+            // Reset layout with 'R' key
+            if (e.key === 'r' || e.key === 'R') {
+                // Clear search field when resetting
+                const searchInput = document.getElementById('node-search');
+                if (searchInput) {
+                    searchInput.value = '';
+                }
+                this.resetLayout();
             }
         });
 
@@ -197,6 +239,12 @@ class CallgraphViewer {
             menuItems.push('<div class="context-menu-item" style="color: #9ca3af; cursor: default; pointer-events: none;"><i class="fas fa-ban"></i> No Connections</div>');
         }
         
+        // Add separator and "Hide others" option
+        if (menuItems.length > 0 && menuItems[menuItems.length - 1].indexOf('No Connections') === -1) {
+            menuItems.push('<div class="context-menu-separator"></div>');
+        }
+        menuItems.push('<div class="context-menu-item" data-action="hide-others"><i class="fas fa-eye-slash"></i> Hide Others</div>');
+        
         // Update menu content
         menu.innerHTML = menuItems.join('');
         
@@ -247,6 +295,9 @@ class CallgraphViewer {
                 break;
             case 'expand-incoming':
                 this.expandNode(nodeId, 'incoming');
+                break;
+            case 'hide-others':
+                this.hideOthers(nodeId);
                 break;
         }
         
@@ -493,6 +544,14 @@ class CallgraphViewer {
         this.network.setOptions({ 
             physics: { enabled: false },
             layout: { hierarchical: { enabled: false } }
+        });
+        
+        // Remove any hierarchical constraints from nodes to allow free X movement
+        this.nodes.forEach((node) => {
+            this.nodes.update({
+                id: node.id,
+                fixed: false  // Ensure nodes can move freely in all directions
+            });
         });
     }
 
@@ -798,6 +857,92 @@ class CallgraphViewer {
             }
         });
 
+        this.updateGraphVisibility();
+        this.updateNodeAppearance(nodeId);
+        
+        // Center on the node that was acted upon with smooth animation
+        this.network.focus(nodeId, {
+            scale: scale,
+            animation: {
+                duration: 300,
+                easingFunction: 'easeInOutQuad'
+            }
+        });
+    }
+
+    hideOthers(nodeId) {
+        // Hide all nodes that are not reachable from this node
+        
+        // Store current view position
+        const viewPosition = this.network.getViewPosition();
+        const scale = this.network.getScale();
+        
+        // Clear previous hidden state
+        this.hiddenNodes.clear();
+        this.hiddenEdges.clear();
+        
+        const allEdges = this.originalData.edges.get();
+        
+        // Find all reachable nodes by following edges in their direction
+        const reachableNodes = new Set([nodeId]); // Include the target node itself
+        
+        // BFS to find all nodes reachable via outgoing edges (downstream)
+        const outgoingQueue = [nodeId];
+        const visitedOutgoing = new Set([nodeId]);
+        
+        while (outgoingQueue.length > 0) {
+            const currentNode = outgoingQueue.shift();
+            
+            allEdges.forEach(edge => {
+                if (edge.from === currentNode && !visitedOutgoing.has(edge.to)) {
+                    visitedOutgoing.add(edge.to);
+                    reachableNodes.add(edge.to);
+                    outgoingQueue.push(edge.to);
+                }
+            });
+        }
+        
+        // BFS to find all nodes reachable via incoming edges (upstream)
+        const incomingQueue = [nodeId];
+        const visitedIncoming = new Set([nodeId]);
+        
+        while (incomingQueue.length > 0) {
+            const currentNode = incomingQueue.shift();
+            
+            allEdges.forEach(edge => {
+                if (edge.to === currentNode && !visitedIncoming.has(edge.from)) {
+                    visitedIncoming.add(edge.from);
+                    reachableNodes.add(edge.from);
+                    incomingQueue.push(edge.from);
+                }
+            });
+        }
+        
+        // Hide all nodes that are not reachable
+        const allNodes = this.originalData.nodes.get();
+        allNodes.forEach(node => {
+            if (!reachableNodes.has(node.id)) {
+                this.hiddenNodes.add(node.id);
+            }
+        });
+        
+        // Also hide isolated nodes if they should be hidden
+        if (!this.showIsolatedNodes) {
+            allNodes.forEach(node => {
+                const isIsolated = !allEdges.some(edge => edge.from === node.id || edge.to === node.id);
+                if (isIsolated && !this.hiddenNodes.has(node.id)) {
+                    this.hiddenNodes.add(node.id);
+                }
+            });
+        }
+        
+        // Hide all edges that don't connect to/from visible nodes
+        allEdges.forEach(edge => {
+            if (!reachableNodes.has(edge.from) || !reachableNodes.has(edge.to)) {
+                this.hiddenEdges.add(edge.id);
+            }
+        });
+        
         this.updateGraphVisibility();
         this.updateNodeAppearance(nodeId);
         
@@ -1265,6 +1410,71 @@ class CallgraphViewer {
         });
     }
 
+    findMatchingNode(query) {
+        if (!this.originalData) {
+            return null;
+        }
+
+        // If query is empty, return null
+        if (!query || query.trim() === '') {
+            return null;
+        }
+
+        const searchTerm = query.trim().toLowerCase();
+
+        // Get all nodes (from original data to search even hidden nodes)
+        const allNodes = this.originalData.nodes.get();
+
+        // Filter nodes whose labels match the prefix (case-insensitive)
+        const matches = allNodes.filter(node => {
+            const label = node.label ? node.label.toLowerCase() : '';
+            return label.startsWith(searchTerm);
+        });
+
+        // If no matches, return null
+        if (matches.length === 0) {
+            return null;
+        }
+
+        // Sort alphabetically by label
+        matches.sort((a, b) => {
+            const labelA = a.label ? a.label.toLowerCase() : '';
+            const labelB = b.label ? b.label.toLowerCase() : '';
+            return labelA.localeCompare(labelB);
+        });
+
+        // Find the first match that has position data available
+        for (const match of matches) {
+            // Try to get position from visible network
+            try {
+                if (this.network) {
+                    const positions = this.network.getPositions([match.id]);
+                    if (positions && positions[match.id]) {
+                        return match;
+                    }
+                }
+            } catch (e) {
+                // Continue to next check
+            }
+            
+            // Try originalPositions
+            if (this.originalPositions && this.originalPositions.has(match.id)) {
+                return match;
+            }
+            
+            // Try node data itself
+            if (this.nodes) {
+                const nodeData = this.nodes.get(match.id);
+                if (nodeData && nodeData.x !== undefined && nodeData.y !== undefined) {
+                    return match;
+                }
+            }
+        }
+
+        // If no match with position data found, return null
+        return null;
+    }
+
     searchNode(query) {
         if (!this.network || !this.originalData) {
             return;
@@ -1298,14 +1508,43 @@ class CallgraphViewer {
             return labelA.localeCompare(labelB);
         });
 
-        // Get the first match
-        const targetNode = matches[0];
+        // Find the first match that has position data available
+        let targetNode = null;
+        let nodePosition = null;
+        
+        for (const match of matches) {
+            // Try to get position from visible network
+            try {
+                const positions = this.network.getPositions([match.id]);
+                if (positions && positions[match.id]) {
+                    targetNode = match;
+                    nodePosition = positions[match.id];
+                    break;
+                }
+            } catch (e) {
+                // Continue to next method
+            }
+            
+            // Try originalPositions
+            if (this.originalPositions && this.originalPositions.has(match.id)) {
+                targetNode = match;
+                nodePosition = this.originalPositions.get(match.id);
+                break;
+            }
+            
+            // Try node data itself
+            if (this.nodes) {
+                const nodeData = this.nodes.get(match.id);
+                if (nodeData && nodeData.x !== undefined && nodeData.y !== undefined) {
+                    targetNode = match;
+                    nodePosition = { x: nodeData.x, y: nodeData.y };
+                    break;
+                }
+            }
+        }
 
-        // Get node position
-        const positions = this.network.getPositions([targetNode.id]);
-        const nodePosition = positions[targetNode.id];
-
-        if (!nodePosition) {
+        // If no match with position found, return
+        if (!targetNode || !nodePosition) {
             return;
         }
 
@@ -1336,11 +1575,27 @@ class CallgraphViewer {
         this.hiddenNodes.clear();
         this.hiddenEdges.clear();
 
-        // Restore all nodes and edges
+        // Re-hide isolated nodes if they should be hidden (preserve the setting)
+        if (!this.showIsolatedNodes) {
+            const allEdges = this.originalData.edges.get();
+            this.originalData.nodes.forEach((node) => {
+                const isIsolated = !allEdges.some(edge => edge.from === node.id || edge.to === node.id);
+                if (isIsolated) {
+                    this.hiddenNodes.add(node.id);
+                }
+            });
+        }
+
+        // Restore all nodes and edges (excluding hidden ones)
         this.nodes.clear();
         this.edges.clear();
 
         this.originalData.nodes.forEach((node) => {
+            // Skip hidden nodes (isolated nodes if they should be hidden)
+            if (this.hiddenNodes.has(node.id)) {
+                return;
+            }
+            
             this.nodes.add({
                 ...node,
                 font: { size: 14, color: '#1e293b' },
@@ -1369,16 +1624,63 @@ class CallgraphViewer {
             });
         });
 
-        // Restore original positions if available
-        if (this.originalPositions.size > 0) {
-            const positions = {};
-            this.originalPositions.forEach((pos, nodeId) => {
-                positions[nodeId] = pos;
-            });
-            this.network.setPositions(positions);
-        }
+        // Re-enable hierarchical layout and physics to redistribute nodes
+        this.network.setOptions({
+            physics: {
+                enabled: true,
+                solver: 'hierarchicalRepulsion',
+                hierarchicalRepulsion: {
+                    centralGravity: 0.0,
+                    springLength: 90,
+                    springConstant: 0.01,
+                    nodeDistance: 100,
+                    damping: 0.09,
+                    avoidOverlap: 0.3
+                },
+                stabilization: {
+                    enabled: true,
+                    iterations: 300
+                }
+            },
+            layout: {
+                hierarchical: {
+                    enabled: true,
+                    direction: 'LR',
+                    sortMethod: 'directed',
+                    levelSeparation: 90,
+                    nodeSpacing: 85,
+                    treeSpacing: 130
+                }
+            }
+        });
 
-        this.fitGraph();
+        // Wait for stabilization, then disable physics and store new positions
+        this.network.once('stabilizationIterationsDone', () => {
+            this.originalPositions.clear();
+            this.nodes.forEach((node) => {
+                const position = this.network.getPositions([node.id])[node.id];
+                if (position) {
+                    this.originalPositions.set(node.id, position);
+                }
+            });
+
+            // Disable physics and hierarchical layout after layout is complete
+            this.network.setOptions({
+                physics: { enabled: false },
+                layout: { hierarchical: { enabled: false } }
+            });
+            
+            // Remove any hierarchical constraints from nodes to allow free X movement
+            this.nodes.forEach((node) => {
+                this.nodes.update({
+                    id: node.id,
+                    fixed: false  // Ensure nodes can move freely in all directions
+                });
+            });
+
+            this.fitGraph();
+        });
+
         this.updateStats();
     }
 
