@@ -551,6 +551,8 @@ class CallgraphViewer {
     }
 
     storeOriginalPositions() {
+        // Store positions as-is from hierarchical layout
+        // The hierarchical layout naturally places entry nodes on left, leaf nodes on right
         this.originalPositions.clear();
         this.nodes.forEach((node) => {
             const position = this.network.getPositions([node.id])[node.id];
@@ -1640,8 +1642,13 @@ class CallgraphViewer {
                 return;
             }
             
+            // Get original position for this node
+            const originalPos = this.originalPositions.get(node.id);
+            
             this.nodes.add({
                 ...node,
+                x: originalPos ? originalPos.x : undefined,
+                y: originalPos ? originalPos.y : undefined,
                 font: { size: 14, color: '#1e293b' },
                 color: {
                     background: '#ffffff',
@@ -1654,7 +1661,9 @@ class CallgraphViewer {
                 borderWidth: 2,
                 shape: 'box',
                 margin: 10,
-                widthConstraint: { minimum: 100, maximum: 200 }
+                widthConstraint: { minimum: 100, maximum: 200 },
+                fixed: { x: false, y: false },
+                physics: false
             });
         });
 
@@ -1668,65 +1677,14 @@ class CallgraphViewer {
             });
         });
 
-        // Use regular physics (not hierarchical) to redistribute nodes
-        // This prevents hierarchical constraints from being applied
+        // Keep physics and hierarchical disabled
         this.network.setOptions({
-            physics: {
-                enabled: true,
-                solver: 'forceAtlas2Based',
-                forceAtlas2Based: {
-                    gravitationalConstant: -50,
-                    centralGravity: 0.01,
-                    springLength: 100,
-                    springConstant: 0.08,
-                    damping: 0.4,
-                    avoidOverlap: 1.2  // Maximum overlap avoidance
-                },
-                stabilization: {
-                    enabled: true,
-                    iterations: 400,
-                    updateInterval: 10
-                }
-            },
-            layout: {
-                hierarchical: {
-                    enabled: false  // Keep hierarchical disabled
-                }
-            }
+            physics: { enabled: false },
+            layout: { hierarchical: { enabled: false } }
         });
-
-        // Wait for stabilization, then disable physics and store new positions
-        this.network.once('stabilizationIterationsDone', () => {
-            this.originalPositions.clear();
-            this.nodes.forEach((node) => {
-                const position = this.network.getPositions([node.id])[node.id];
-                if (position) {
-                    this.originalPositions.set(node.id, position);
-                }
-            });
-
-            // Disable physics and hierarchical layout after layout is complete
-            this.network.setOptions({
-                physics: { enabled: false },
-                layout: { hierarchical: { enabled: false } }
-            });
-            
-            // Remove any hierarchical constraints from nodes to allow free X and Y movement
-            // Must set both fixed and physics properties
-            this.nodes.forEach((node) => {
-                this.nodes.update({
-                    id: node.id,
-                    fixed: false,
-                    physics: false
-                });
-            });
-            
-            // Force a redraw to ensure constraints are removed
-            this.network.redraw();
-
-            this.fitGraph();
-        });
-
+        
+        this.network.redraw();
+        this.fitGraph();
         this.updateStats();
     }
 
