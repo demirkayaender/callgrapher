@@ -1673,11 +1673,12 @@ class CallgraphViewer {
                     springLength: 100,
                     springConstant: 0.08,
                     damping: 0.4,
-                    avoidOverlap: 0.5
+                    avoidOverlap: 1.2  // Maximum overlap avoidance
                 },
                 stabilization: {
                     enabled: true,
-                    iterations: 300
+                    iterations: 400,
+                    updateInterval: 10
                 }
             },
             layout: {
