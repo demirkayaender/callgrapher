@@ -1777,32 +1777,54 @@ class CallgraphViewer {
             filter: (node) => !this.hiddenNodes.has(node.id)
         });
 
-        // Filter nodes whose labels match the prefix (case-insensitive)
-        const matches = visibleNodes.filter(node => {
+        // Find prefix matches and fuzzy matches
+        const prefixMatches = [];
+        const fuzzyMatches = [];
+        
+        visibleNodes.forEach(node => {
             // Get label and strip any HTML tags
             let label = node.label || '';
             label = label.replace(/<[^>]*>/g, '');
-            label = label.toLowerCase();
-            return label.startsWith(searchTerm);
+            const lowerLabel = label.toLowerCase();
+            
+            // Check prefix match first (takes precedence)
+            if (lowerLabel.startsWith(searchTerm)) {
+                prefixMatches.push({ node, label });
+            } else {
+                // Try fuzzy match
+                const fuzzyScore = this.fuzzyMatch(label, searchTerm);
+                if (fuzzyScore > 0) {
+                    fuzzyMatches.push({ node, label, fuzzyScore });
+                }
+            }
         });
 
-        // If no matches, return null
-        if (matches.length === 0) {
+        // Combine matches: prefix matches first, then fuzzy matches
+        let allMatches = [];
+        
+        if (prefixMatches.length > 0) {
+            // Sort prefix matches alphabetically
+            prefixMatches.sort((a, b) => a.label.localeCompare(b.label));
+            allMatches = prefixMatches.map(m => m.node);
+        }
+        
+        if (allMatches.length === 0 && fuzzyMatches.length > 0) {
+            // Sort fuzzy matches by score (descending), then alphabetically
+            fuzzyMatches.sort((a, b) => {
+                if (b.fuzzyScore !== a.fuzzyScore) {
+                    return b.fuzzyScore - a.fuzzyScore;
+                }
+                return a.label.localeCompare(b.label);
+            });
+            allMatches = fuzzyMatches.map(m => m.node);
+        }
+
+        if (allMatches.length === 0) {
             return null;
         }
 
-        // Sort alphabetically by label (strip HTML for sorting too)
-        matches.sort((a, b) => {
-            let labelA = a.label || '';
-            let labelB = b.label || '';
-            // Strip HTML tags
-            labelA = labelA.replace(/<[^>]*>/g, '').toLowerCase();
-            labelB = labelB.replace(/<[^>]*>/g, '').toLowerCase();
-            return labelA.localeCompare(labelB);
-        });
-
         // Find the first match that has position data available
-        for (const match of matches) {
+        for (const match of allMatches) {
             // Try to get position from visible network
             try {
                 if (this.network) {
@@ -1833,6 +1855,30 @@ class CallgraphViewer {
         return null;
     }
 
+    fuzzyMatch(str, pattern) {
+        // Check if all characters in pattern appear in str in order
+        str = str.toLowerCase();
+        pattern = pattern.toLowerCase();
+        
+        let patternIdx = 0;
+        let score = 0;
+        let consecutiveMatches = 0;
+        
+        for (let i = 0; i < str.length && patternIdx < pattern.length; i++) {
+            if (str[i] === pattern[patternIdx]) {
+                // Character matches - bonus for consecutive matches
+                score += 1 + consecutiveMatches;
+                consecutiveMatches++;
+                patternIdx++;
+            } else {
+                consecutiveMatches = 0;
+            }
+        }
+        
+        // Return score if all pattern characters were matched, otherwise 0
+        return patternIdx === pattern.length ? score : 0;
+    }
+
     searchNode(query) {
         if (!this.network || !this.originalData) {
             return;
@@ -1844,76 +1890,43 @@ class CallgraphViewer {
             return;
         }
 
-        const searchTerm = query.trim().toLowerCase();
-
-        // Get only visible nodes (not hidden ones)
-        const visibleNodes = this.originalData.nodes.get({
-            filter: (node) => !this.hiddenNodes.has(node.id)
-        });
-
-        // Filter nodes whose labels match the prefix (case-insensitive)
-        const matches = visibleNodes.filter(node => {
-            // Get label and strip any HTML tags that might be in it
-            let label = node.label || '';
-            // Remove HTML tags like <b>, <font>, etc.
-            label = label.replace(/<[^>]*>/g, '');
-            label = label.toLowerCase();
-            return label.startsWith(searchTerm);
-        });
-
-        // If no matches, unselect and do nothing
-        if (matches.length === 0) {
+        // Use findMatchingNode which handles both prefix and fuzzy matching
+        const targetNode = this.findMatchingNode(query);
+        
+        // If no match found, unselect and return
+        if (!targetNode) {
             this.network.unselectAll();
             return;
         }
-
-        // Sort alphabetically by label (strip HTML for sorting too)
-        matches.sort((a, b) => {
-            let labelA = a.label || '';
-            let labelB = b.label || '';
-            // Strip HTML tags
-            labelA = labelA.replace(/<[^>]*>/g, '').toLowerCase();
-            labelB = labelB.replace(/<[^>]*>/g, '').toLowerCase();
-            return labelA.localeCompare(labelB);
-        });
-
-        // Find the first match that has position data available
-        let targetNode = null;
+        
+        // Get node position
         let nodePosition = null;
         
-        for (const match of matches) {
-            // Try to get position from visible network
-            try {
-                const positions = this.network.getPositions([match.id]);
-                if (positions && positions[match.id]) {
-                    targetNode = match;
-                    nodePosition = positions[match.id];
-                    break;
-                }
-            } catch (e) {
-                // Continue to next method
+        // Try to get position from visible network
+        try {
+            const positions = this.network.getPositions([targetNode.id]);
+            if (positions && positions[targetNode.id]) {
+                nodePosition = positions[targetNode.id];
             }
-            
-            // Try originalPositions
-            if (this.originalPositions && this.originalPositions.has(match.id)) {
-                targetNode = match;
-                nodePosition = this.originalPositions.get(match.id);
-                break;
-            }
-            
-            // Try node data itself
-            if (this.nodes) {
-                const nodeData = this.nodes.get(match.id);
-                if (nodeData && nodeData.x !== undefined && nodeData.y !== undefined) {
-                    targetNode = match;
-                    nodePosition = { x: nodeData.x, y: nodeData.y };
-                    break;
-                }
+        } catch (e) {
+            // Continue to next method
+        }
+        
+        // Try originalPositions
+        if (!nodePosition && this.originalPositions && this.originalPositions.has(targetNode.id)) {
+            nodePosition = this.originalPositions.get(targetNode.id);
+        }
+        
+        // Try node data itself
+        if (!nodePosition && this.nodes) {
+            const nodeData = this.nodes.get(targetNode.id);
+            if (nodeData && nodeData.x !== undefined && nodeData.y !== undefined) {
+                nodePosition = { x: nodeData.x, y: nodeData.y };
             }
         }
 
-        // If no match with position found, unselect and return
-        if (!targetNode || !nodePosition) {
+        // If no position found, unselect and return
+        if (!nodePosition) {
             this.network.unselectAll();
             return;
         }
