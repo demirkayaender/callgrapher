@@ -109,6 +109,16 @@ class CallgraphViewer {
                 }
                 this.resetLayout();
             }
+            
+            // Focus on search box with '/' key
+            if (e.key === '/') {
+                e.preventDefault(); // Prevent "/" from being typed in the search box
+                const searchInput = document.getElementById('node-search');
+                if (searchInput) {
+                    searchInput.focus();
+                    searchInput.select(); // Select any existing text
+                }
+            }
         });
 
         // Detail panel
