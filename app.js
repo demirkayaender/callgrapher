@@ -1459,11 +1459,13 @@ class CallgraphViewer {
 
         const searchTerm = query.trim().toLowerCase();
 
-        // Get all nodes (from original data to search even hidden nodes)
-        const allNodes = this.originalData.nodes.get();
+        // Get only visible nodes (not hidden ones)
+        const visibleNodes = this.originalData.nodes.get({
+            filter: (node) => !this.hiddenNodes.has(node.id)
+        });
 
         // Filter nodes whose labels match the prefix (case-insensitive)
-        const matches = allNodes.filter(node => {
+        const matches = visibleNodes.filter(node => {
             const label = node.label ? node.label.toLowerCase() : '';
             return label.startsWith(searchTerm);
         });
@@ -1524,11 +1526,13 @@ class CallgraphViewer {
 
         const searchTerm = query.trim().toLowerCase();
 
-        // Get all nodes (from original data to search even hidden nodes)
-        const allNodes = this.originalData.nodes.get();
+        // Get only visible nodes (not hidden ones)
+        const visibleNodes = this.originalData.nodes.get({
+            filter: (node) => !this.hiddenNodes.has(node.id)
+        });
 
         // Filter nodes whose labels match the prefix (case-insensitive)
-        const matches = allNodes.filter(node => {
+        const matches = visibleNodes.filter(node => {
             const label = node.label ? node.label.toLowerCase() : '';
             return label.startsWith(searchTerm);
         });
