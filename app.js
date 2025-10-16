@@ -1028,7 +1028,7 @@ class CallgraphViewer {
                 }
             };
             fontColor = '#000000';
-            borderWidth = 4;
+            borderWidth = 2;
             
             // Clear any existing timeout for this node
             if (this.flashTimeouts.has(nodeId)) {
@@ -1075,7 +1075,7 @@ class CallgraphViewer {
             if (collapseState && collapseState.outgoing) {
                 border = '#374151'; // Dark gray border = outgoing collapsed
                 highlightBorder = '#1f2937';
-                borderWidth = 4; // Thick border for outgoing collapsed
+                borderWidth = 2; // Same thickness, but will be dashed
             } else {
                 border = '#4f46e5'; // Blue border = outgoing expanded
                 highlightBorder = '#4338ca';
@@ -1092,11 +1092,17 @@ class CallgraphViewer {
             };
         }
 
+        // Set dashed border for outgoing collapsed, solid for others
+        const shapeProperties = (collapseState && collapseState.outgoing) 
+            ? { borderDashes: [5, 5] } 
+            : { borderDashes: false };
+
         this.nodes.update({
             id: nodeId,
             color: color,
             borderWidth: borderWidth,
-            font: { size: 14, color: fontColor, bold: !!collapseState }
+            font: { size: 14, color: fontColor, bold: !!collapseState },
+            shapeProperties: shapeProperties
         });
     }
 
@@ -1133,12 +1139,13 @@ class CallgraphViewer {
         const borderColor = `rgb(${lerp(startBorder.r, endBorder.r, progress)}, ${lerp(startBorder.g, endBorder.g, progress)}, ${lerp(startBorder.b, endBorder.b, progress)})`;
         const fontColor = `rgb(${lerp(startFont.r, endFont.r, progress)}, ${lerp(startFont.g, endFont.g, progress)}, ${lerp(startFont.b, endFont.b, progress)})`;
         
-        // Fade border width - from 4 to final width (4 for outgoing collapsed, 2 otherwise)
-        let finalBorderWidth = 2;
-        if (collapseState && collapseState.outgoing) {
-            finalBorderWidth = 4; // Keep thick border whenever outgoing is collapsed, regardless of incoming state
-        }
-        const borderWidth = Math.round(4 - ((4 - finalBorderWidth) * progress));
+        // Border width stays at 2, but we'll use dashed for outgoing collapsed
+        const borderWidth = 2;
+        
+        // Set dashed border for outgoing collapsed, solid for others
+        const shapeProperties = (collapseState && collapseState.outgoing) 
+            ? { borderDashes: [5, 5] } 
+            : { borderDashes: false };
         
         this.nodes.update({
             id: nodeId,
@@ -1151,11 +1158,12 @@ class CallgraphViewer {
                 }
             },
             borderWidth: borderWidth,
-            font: { 
-                size: 14, 
-                color: fontColor, 
-                bold: !!collapseState 
-            }
+            font: {
+                size: 14,
+                color: fontColor,
+                bold: !!collapseState
+            },
+            shapeProperties: shapeProperties
         });
     }
 
@@ -1312,7 +1320,7 @@ class CallgraphViewer {
             if (collapseState && collapseState.outgoing) {
                 border = isLastAction ? '#1f2937' : '#374151'; // Dark gray = outgoing collapsed
                 highlightBorder = '#1f2937';
-                borderWidth = 4; // Thick border for outgoing collapsed
+                borderWidth = 2; // Same thickness, but will be dashed
             } else {
                 border = isLastAction ? '#4338ca' : '#4f46e5'; // Blue = outgoing expanded
                 highlightBorder = '#4338ca';
@@ -1327,6 +1335,11 @@ class CallgraphViewer {
                     border: highlightBorder
                 }
             };
+            
+            // Set dashed border for outgoing collapsed, solid for others
+            const shapeProperties = (collapseState && collapseState.outgoing) 
+                ? { borderDashes: [5, 5] } 
+                : { borderDashes: false };
             
             // Use stored position if available, otherwise use original
             const position = currentPositions[node.id] || this.originalPositions.get(node.id) || {};
@@ -1344,7 +1357,8 @@ class CallgraphViewer {
                 borderWidth: borderWidth,
                 shape: 'box',
                 margin: 10,
-                widthConstraint: { minimum: 100, maximum: 200 }
+                widthConstraint: { minimum: 100, maximum: 200 },
+                shapeProperties: shapeProperties
             });
         });
         
