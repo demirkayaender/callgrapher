@@ -41,10 +41,18 @@ class CallgraphViewer {
         // Search input
         document.getElementById('node-search').addEventListener('input', (e) => this.searchNode(e.target.value));
         
-        // Search input - Enter key to hide others
+        // Search input - Enter key to hide others or reset if empty
         document.getElementById('node-search').addEventListener('keydown', (e) => {
             if (e.key === 'Enter') {
                 const query = e.target.value;
+                
+                // If search box is empty, reset the view
+                if (!query || query.trim() === '') {
+                    this.resetLayout();
+                    return;
+                }
+                
+                // Otherwise, hide others for the matched node
                 const matchedNode = this.findMatchingNode(query);
                 if (matchedNode) {
                     this.lastActionNode = matchedNode.id;
