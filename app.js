@@ -652,6 +652,20 @@ class CallgraphViewer {
                 <span class="property-label">Label:</span>
                 <div class="property-value">${node.label || nodeId}</div>
             </div>
+        `;
+        
+        // Add file path if available
+        const filePath = node.file || node.path || node.filepath || node.location;
+        if (filePath) {
+            html += `
+                <div class="property">
+                    <span class="property-label">File:</span>
+                    <div class="property-value" style="word-break: break-all;">${filePath}</div>
+                </div>
+            `;
+        }
+        
+        html += `
             <div class="property">
                 <span class="property-label">Incoming Calls:</span>
                 <div class="property-value">${incomingCalls}</div>
@@ -668,7 +682,7 @@ class CallgraphViewer {
 
         // Add any custom attributes from the DOT file
         Object.keys(node).forEach((key) => {
-            if (!['id', 'label', 'x', 'y', 'font', 'color', 'shape', 'margin', 'widthConstraint', 'borderWidth'].includes(key)) {
+            if (!['id', 'label', 'x', 'y', 'font', 'color', 'shape', 'margin', 'widthConstraint', 'borderWidth', 'file', 'path', 'filepath', 'location', 'fixed', 'physics', 'shapeProperties', 'originalLabel', 'originalFontColor'].includes(key)) {
                 html += `
                     <div class="property">
                         <span class="property-label">${key}:</span>

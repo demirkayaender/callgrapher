@@ -215,7 +215,7 @@ class GoParser {
         }
         
         return {
-            functions: Array.from(this.functions.keys()),
+            functions: this.functions,  // Return the full Map, not just keys
             edges: edges
         };
     }
@@ -230,12 +230,16 @@ class GoParser {
         
         // Add all nodes
         const nodeIds = new Map();
-        callGraph.functions.forEach((funcName, index) => {
+        let index = 0;
+        callGraph.functions.forEach((funcData, funcName) => {
             const nodeId = `n${index}`;
+            index++;
             nodeIds.set(funcName, nodeId);
             // Use function name without package for label
             const label = funcName.split('.').pop();
-            dot += `    ${nodeId} [label="${label}"];\n`;
+            // Add file path as an attribute if available
+            const fileAttr = funcData && funcData.file ? ` file="${funcData.file}"` : '';
+            dot += `    ${nodeId} [label="${label}"${fileAttr}];\n`;
         });
         
         dot += '\n';
