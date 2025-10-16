@@ -578,6 +578,9 @@ class CallgraphViewer {
         
         // Force a redraw to ensure constraints are removed
         this.network.redraw();
+        
+        // Fix any horizontal overlaps in the initial layout
+        this.fixHorizontalOverlaps();
     }
 
     setupNetworkEvents() {
@@ -1068,6 +1071,9 @@ class CallgraphViewer {
                 
                 this.network.redraw();
                 
+                // Fix any horizontal overlaps
+                this.fixHorizontalOverlaps();
+                
                 // Step 3: Fit to view and select the node
                 setTimeout(() => {
                     // Select the node so it's highlighted
@@ -1101,6 +1107,124 @@ class CallgraphViewer {
                 finishReorganization();
             }
         }, 5);
+    }
+
+    fixHorizontalOverlaps() {
+        // Fix nodes that overlap horizontally
+        const allNodes = this.nodes.get();
+        if (allNodes.length === 0) return;
+        
+        const nodeWidth = 200;
+        const nodeHeight = 80;
+        const minSpacing = 40;
+        
+        // Get actual positions from the network
+        const nodeIds = allNodes.map(n => n.id);
+        const positions = this.network.getPositions(nodeIds);
+        
+        // Create array of nodes with their actual positions
+        const nodesWithPos = allNodes.map(node => ({
+            id: node.id,
+            x: positions[node.id] ? positions[node.id].x : (node.x || 0),
+            y: positions[node.id] ? positions[node.id].y : (node.y || 0)
+        })).filter(n => n.x !== 0 || n.y !== 0);
+        
+        // Sort by x coordinate
+        nodesWithPos.sort((a, b) => a.x - b.x);
+        
+        // Find all pairs of nodes whose bounding boxes overlap
+        const needsFixing = [];
+        for (let i = 0; i < nodesWithPos.length; i++) {
+            for (let j = i + 1; j < nodesWithPos.length; j++) {
+                const node1 = nodesWithPos[i];
+                const node2 = nodesWithPos[j];
+                
+                const xDist = Math.abs(node2.x - node1.x);
+                if (xDist > nodeWidth * 1.5) break;
+                
+                // Check if bounding boxes overlap
+                const halfWidth = nodeWidth / 2;
+                const halfHeight = nodeHeight / 2;
+                const spacing = minSpacing / 2;
+                
+                const node1Left = node1.x - halfWidth - spacing;
+                const node1Right = node1.x + halfWidth + spacing;
+                const node1Top = node1.y - halfHeight - spacing;
+                const node1Bottom = node1.y + halfHeight + spacing;
+                
+                const node2Left = node2.x - halfWidth - spacing;
+                const node2Right = node2.x + halfWidth + spacing;
+                const node2Top = node2.y - halfHeight - spacing;
+                const node2Bottom = node2.y + halfHeight + spacing;
+                
+                const overlaps = !(node1Right < node2Left || 
+                                   node1Left > node2Right || 
+                                   node1Bottom < node2Top || 
+                                   node1Top > node2Bottom);
+                
+                if (overlaps) {
+                    needsFixing.push({ node1, node2 });
+                }
+            }
+        }
+        
+        // Fix overlaps by moving nodes vertically
+        if (needsFixing.length > 0) {
+            // Group overlapping nodes
+            const groups = [];
+            const processed = new Set();
+            
+            for (const overlap of needsFixing) {
+                if (processed.has(overlap.node1.id) || processed.has(overlap.node2.id)) continue;
+                
+                const group = new Set([overlap.node1.id, overlap.node2.id]);
+                let changed = true;
+                
+                while (changed) {
+                    changed = false;
+                    for (const check of needsFixing) {
+                        const hasNode1 = group.has(check.node1.id);
+                        const hasNode2 = group.has(check.node2.id);
+                        
+                        if (hasNode1 && !hasNode2) {
+                            group.add(check.node2.id);
+                            changed = true;
+                        } else if (hasNode2 && !hasNode1) {
+                            group.add(check.node1.id);
+                            changed = true;
+                        }
+                    }
+                }
+                
+                groups.push(Array.from(group).map(id => nodesWithPos.find(n => n.id === id)));
+                group.forEach(id => processed.add(id));
+            }
+            
+            // Redistribute each group vertically
+            for (const group of groups) {
+                group.sort((a, b) => a.y - b.y);
+                
+                for (let i = 1; i < group.length; i++) {
+                    const prev = group[i - 1];
+                    const curr = group[i];
+                    const requiredY = prev.y + nodeHeight + minSpacing;
+                    
+                    if (curr.y < requiredY) {
+                        curr.y = requiredY;
+                        
+                        this.nodes.update({
+                            id: curr.id,
+                            y: curr.y
+                        });
+                        
+                        if (this.originalPositions.has(curr.id)) {
+                            const pos = this.originalPositions.get(curr.id);
+                            this.originalPositions.set(curr.id, { x: pos.x, y: curr.y });
+                        }
+                    }
+                }
+            }
+        }
     }
 
     calculateNodeLevels(nodeIds, edges) {
@@ -1884,6 +2008,10 @@ class CallgraphViewer {
         });
         
         this.network.redraw();
+        
+        // Fix any horizontal overlaps after reset
+        this.fixHorizontalOverlaps();
+        
         this.fitGraph();
         this.updateStats();
     }
