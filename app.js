@@ -985,14 +985,172 @@ class CallgraphViewer {
         this.updateGraphVisibility();
         this.updateNodeAppearance(nodeId);
         
-        // Center on the node that was acted upon with smooth animation
-        this.network.focus(nodeId, {
-            scale: scale,
-            animation: {
-                duration: 300,
-                easingFunction: 'easeInOutQuad'
+        // Step 1: Order nodes left-to-right based on call graph levels
+        const visibleNodeIds = this.nodes.get().map(n => n.id);
+        const visibleEdges = this.edges.get();
+        const nodeLevels = this.calculateNodeLevels(visibleNodeIds, visibleEdges);
+        
+        // Group nodes by level
+        const levelGroups = new Map();
+        nodeLevels.forEach((level, nodeId) => {
+            if (!levelGroups.has(level)) {
+                levelGroups.set(level, []);
+            }
+            levelGroups.get(level).push(nodeId);
+        });
+        
+        // Calculate spacing based on levels
+        const levelSpacing = 200;
+        const verticalSpacing = 150;
+        
+        // Position nodes based on their levels
+        this.nodes.get().forEach((node) => {
+            const level = nodeLevels.get(node.id) || 0;
+            const nodesInLevel = levelGroups.get(level) || [];
+            const indexInLevel = nodesInLevel.indexOf(node.id);
+            
+            const x = level * levelSpacing;
+            const y = indexInLevel * verticalSpacing - (nodesInLevel.length * verticalSpacing) / 2;
+            
+            this.nodes.update({
+                id: node.id,
+                x: x,
+                y: y
+            });
+        });
+        
+        // Step 2: Apply physics to compact the nodes while maintaining general left-right order
+        this.network.setOptions({
+            physics: {
+                enabled: true,
+                solver: 'forceAtlas2Based',
+                forceAtlas2Based: {
+                    gravitationalConstant: -35,
+                    centralGravity: 0.005,
+                    springLength: 100,
+                    springConstant: 0.08,
+                    damping: 0.4,
+                    avoidOverlap: 0.5
+                },
+                stabilization: {
+                    enabled: true,
+                    iterations: 200,
+                    updateInterval: 25
+                }
             }
         });
+        
+        // Function to handle post-stabilization tasks
+        const finishReorganization = () => {
+            // Disable physics
+            this.network.setOptions({
+                physics: { enabled: false }
+            });
+            
+            setTimeout(() => {
+                // Store final positions
+                const allNodes = this.nodes.get();
+                allNodes.forEach((node) => {
+                    const position = this.network.getPositions([node.id])[node.id];
+                    if (position) {
+                        this.originalPositions.set(node.id, position);
+                    }
+                });
+                
+                // Remove constraints from nodes
+                allNodes.forEach((node) => {
+                    this.nodes.update({
+                        id: node.id,
+                        fixed: { x: false, y: false },
+                        physics: false
+                    });
+                });
+                
+                this.network.redraw();
+                
+                // Step 3: Fit to view and select the node
+                setTimeout(() => {
+                    // Select the node so it's highlighted
+                    this.network.selectNodes([nodeId]);
+                    
+                    // Fit to view
+                    this.network.fit({
+                        animation: {
+                            duration: 500,
+                            easingFunction: 'easeInOutQuad'
+                        }
+                    });
+                }, 300);
+            }, 200);
+        };
+        
+        // Wait for compaction to finish with both event and timeout fallback
+        let stabilizationHandled = false;
+        
+        this.network.once('stabilizationIterationsDone', () => {
+            if (!stabilizationHandled) {
+                stabilizationHandled = true;
+                finishReorganization();
+            }
+        });
+        
+        // Fallback timeout in case stabilization event never fires
+        setTimeout(() => {
+            if (!stabilizationHandled) {
+                stabilizationHandled = true;
+                finishReorganization();
+            }
+        }, 5);
+    }
+
+    calculateNodeLevels(nodeIds, edges) {
+        // Calculate the "level" of each node in the call graph
+        // Entry nodes (no incoming) are at level 0, their children at level 1, etc.
+        const nodeLevels = new Map();
+        const incomingCount = new Map();
+        const outgoingEdges = new Map();
+        
+        // Initialize
+        nodeIds.forEach(id => {
+            incomingCount.set(id, 0);
+            outgoingEdges.set(id, []);
+            nodeLevels.set(id, 0);
+        });
+        
+        // Build adjacency info
+        edges.forEach(edge => {
+            if (nodeIds.includes(edge.from) && nodeIds.includes(edge.to)) {
+                incomingCount.set(edge.to, incomingCount.get(edge.to) + 1);
+                outgoingEdges.get(edge.from).push(edge.to);
+            }
+        });
+        
+        // BFS from entry nodes (nodes with no incoming edges)
+        const queue = [];
+        nodeIds.forEach(id => {
+            if (incomingCount.get(id) === 0) {
+                queue.push({ id, level: 0 });
+                nodeLevels.set(id, 0);
+            }
+        });
+        
+        // Process queue
+        while (queue.length > 0) {
+            const { id, level } = queue.shift();
+            
+            outgoingEdges.get(id).forEach(childId => {
+                const currentLevel = nodeLevels.get(childId);
+                const newLevel = level + 1;
+                
+                // Only update if this path gives a higher level (further from entry)
+                if (newLevel > currentLevel) {
+                    nodeLevels.set(childId, newLevel);
+                    queue.push({ id: childId, level: newLevel });
+                }
+            });
+        }
+        
+        return nodeLevels;
     }
 
     isNodeCollapsedByOthers(nodeId) {
@@ -1427,10 +1585,11 @@ class CallgraphViewer {
         // Remove any hierarchical constraints from nodes to ensure free X and Y movement
         // This is critical after operations like hide/show, collapse/expand, or search
         // Must set both fixed and physics properties
-        this.nodes.forEach((node) => {
+        const allNodes = this.nodes.get();
+        allNodes.forEach((node) => {
             this.nodes.update({
                 id: node.id,
-                fixed: false,
+                fixed: { x: false, y: false },
                 physics: false
             });
         });
@@ -1496,7 +1655,10 @@ class CallgraphViewer {
 
         // Filter nodes whose labels match the prefix (case-insensitive)
         const matches = visibleNodes.filter(node => {
-            const label = node.label ? node.label.toLowerCase() : '';
+            // Get label and strip any HTML tags
+            let label = node.label || '';
+            label = label.replace(/<[^>]*>/g, '');
+            label = label.toLowerCase();
             return label.startsWith(searchTerm);
         });
 
@@ -1505,10 +1667,13 @@ class CallgraphViewer {
             return null;
         }
 
-        // Sort alphabetically by label
+        // Sort alphabetically by label (strip HTML for sorting too)
         matches.sort((a, b) => {
-            const labelA = a.label ? a.label.toLowerCase() : '';
-            const labelB = b.label ? b.label.toLowerCase() : '';
+            let labelA = a.label || '';
+            let labelB = b.label || '';
+            // Strip HTML tags
+            labelA = labelA.replace(/<[^>]*>/g, '').toLowerCase();
+            labelB = labelB.replace(/<[^>]*>/g, '').toLowerCase();
             return labelA.localeCompare(labelB);
         });
 
@@ -1564,7 +1729,11 @@ class CallgraphViewer {
 
         // Filter nodes whose labels match the prefix (case-insensitive)
         const matches = visibleNodes.filter(node => {
-            const label = node.label ? node.label.toLowerCase() : '';
+            // Get label and strip any HTML tags that might be in it
+            let label = node.label || '';
+            // Remove HTML tags like <b>, <font>, etc.
+            label = label.replace(/<[^>]*>/g, '');
+            label = label.toLowerCase();
             return label.startsWith(searchTerm);
         });
 
@@ -1574,10 +1743,13 @@ class CallgraphViewer {
             return;
         }
 
-        // Sort alphabetically by label
+        // Sort alphabetically by label (strip HTML for sorting too)
         matches.sort((a, b) => {
-            const labelA = a.label ? a.label.toLowerCase() : '';
-            const labelB = b.label ? b.label.toLowerCase() : '';
+            let labelA = a.label || '';
+            let labelB = b.label || '';
+            // Strip HTML tags
+            labelA = labelA.replace(/<[^>]*>/g, '').toLowerCase();
+            labelB = labelB.replace(/<[^>]*>/g, '').toLowerCase();
             return labelA.localeCompare(labelB);
         });
 
