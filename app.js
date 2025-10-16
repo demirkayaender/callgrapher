@@ -1519,8 +1519,9 @@ class CallgraphViewer {
             return;
         }
 
-        // If query is empty, do nothing
+        // If query is empty, unselect and do nothing
         if (!query || query.trim() === '') {
+            this.network.unselectAll();
             return;
         }
 
@@ -1537,8 +1538,9 @@ class CallgraphViewer {
             return label.startsWith(searchTerm);
         });
 
-        // If no matches, do nothing
+        // If no matches, unselect and do nothing
         if (matches.length === 0) {
+            this.network.unselectAll();
             return;
         }
 
@@ -1584,8 +1586,9 @@ class CallgraphViewer {
             }
         }
 
-        // If no match with position found, return
+        // If no match with position found, unselect and return
         if (!targetNode || !nodePosition) {
+            this.network.unselectAll();
             return;
         }
 
