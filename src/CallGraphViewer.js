@@ -6,6 +6,9 @@ import { LayoutManager } from './LayoutManager.js';
 import { SearchManager } from './SearchManager.js';
 import { ExportManager } from './ExportManager.js';
 import { UIManager } from './UIManager.js';
+import { ErrorHandler } from './ErrorHandler.js';
+import { Logger } from './Logger.js';
+import { Constants } from './Constants.js';
 
 export class CallGraphViewer {
     constructor() {
@@ -40,19 +43,28 @@ export class CallGraphViewer {
         this.uiManager.hideHelpOverlay();
         document.getElementById('file-name').textContent = file.name;
 
+        Logger.info('CallGraphViewer', 'Loading DOT file', { fileName: file.name, size: file.size });
+
         try {
             const content = await this.dotParser.readFile(file);
             this.parseDotFile(content);
         } catch (error) {
-            alert(`Error reading file: ${error.message}`);
-            console.error(error);
+            ErrorHandler.handle(
+                error,
+                'CallGraphViewer.handleFileUpload',
+                'Failed to read file. Please check that the file is accessible and try again.',
+                { fileName: file.name }
+            );
         }
     }
 
     async handleGenerateFromFolder() {
         try {
             if (!('showDirectoryPicker' in window)) {
-                alert('Your browser does not support folder selection. Please use Chrome, Edge, or another Chromium-based browser.');
+                ErrorHandler.showNotification(
+                    'Your browser does not support folder selection. Please use Chrome, Edge, or another Chromium-based browser.',
+                    'warning'
+                );
                 return;
             }
 
@@ -62,11 +74,13 @@ export class CallGraphViewer {
             document.getElementById('generate-status').textContent = 'Scanning folder...';
             document.getElementById('generate-status').textContent = `Analyzing: ${dirHandle.name}`;
 
+            Logger.info('CallGraphViewer', 'Generating callgraph from folder', { folderName: dirHandle.name });
+
             const parser = new GoParser();
             const callGraph = await parser.parseDirectory(dirHandle);
 
             if (callGraph.functions.length === 0) {
-                alert('No Go functions found in the selected folder.');
+                ErrorHandler.showNotification('No Go functions found in the selected folder.', 'warning');
                 document.getElementById('generate-status').textContent = 'No functions found';
                 return;
             }
@@ -75,17 +89,28 @@ export class CallGraphViewer {
             const dotContent = parser.generateDOT(callGraph);
             document.getElementById('generate-status').textContent = `Generated: ${callGraph.functions.length} functions, ${callGraph.edges.length} calls`;
 
+            Logger.info('CallGraphViewer', 'Callgraph generated successfully', { 
+                functionCount: callGraph.functions.length, 
+                edgeCount: callGraph.edges.length 
+            });
+
             this.parseDotFile(dotContent);
         } catch (error) {
             if (error.name !== 'AbortError') {
-                console.error('Error generating callgraph:', error);
-                alert(`Error: ${error.message}`);
+                ErrorHandler.handle(
+                    error,
+                    'CallGraphViewer.handleGenerateFromFolder',
+                    'Failed to generate callgraph from folder. Please check folder permissions and try again.',
+                    { errorName: error.name }
+                );
                 document.getElementById('generate-status').textContent = 'Error generating DOT';
             }
         }
     }
 
     parseDotFile(dotContent) {
+        Logger.debug('CallGraphViewer', 'Parsing DOT file', { contentLength: dotContent.length });
+
         try {
             const parsedData = vis.parseDOTNetwork(dotContent);
             
@@ -96,6 +121,11 @@ export class CallGraphViewer {
 
             this.nodes = new vis.DataSet(parsedData.nodes);
             this.edges = new vis.DataSet(parsedData.edges);
+
+            Logger.info('CallGraphViewer', 'DOT file parsed successfully', { 
+                nodeCount: parsedData.nodes.length, 
+                edgeCount: parsedData.edges.length 
+            });
 
             // Filter isolated nodes if needed
             if (!this.showIsolatedNodes) {
@@ -108,8 +138,12 @@ export class CallGraphViewer {
             this.renderGraph();
             this.updateStats();
         } catch (error) {
-            alert(`Error parsing DOT file: ${error.message}`);
-            console.error(error);
+            ErrorHandler.handle(
+                error,
+                'CallGraphViewer.parseDotFile',
+                'Failed to parse DOT file. Please check that the file is in valid DOT format.',
+                { contentLength: dotContent.length }
+            );
         }
     }
 
@@ -195,6 +229,8 @@ export class CallGraphViewer {
     }
 
     hideOthers(nodeId) {
+        Logger.debug('CallGraphViewer', 'Hiding other nodes', { targetNode: nodeId });
+
         this.hiddenNodes.clear();
         this.hiddenEdges.clear();
         
@@ -519,6 +555,8 @@ export class CallGraphViewer {
     resetLayout() {
         if (!this.network || !this.originalData) return;
 
+        Logger.info('CallGraphViewer', 'Resetting layout');
+
         this.nodeOps.collapsedNodes.clear();
         this.hiddenNodes.clear();
         this.hiddenEdges.clear();
@@ -584,12 +622,12 @@ export class CallGraphViewer {
 
     zoomToText() {
         if (!this.network) {
-            alert('No graph loaded. Please load a DOT file first.');
+            ErrorHandler.showNotification('No graph loaded. Please load a DOT file first.', 'info');
             return;
         }
 
-        const minTextSize = 12;
-        const nodeFontSize = 14;
+        const minTextSize = Constants.SEARCH.MIN_TEXT_SIZE_PX;
+        const nodeFontSize = Constants.SEARCH.NODE_FONT_SIZE_PX;
         const targetScale = minTextSize / nodeFontSize;
 
         const viewPosition = this.network.getViewPosition();
@@ -598,10 +636,12 @@ export class CallGraphViewer {
             position: viewPosition,
             scale: targetScale,
             animation: {
-                duration: 500,
+                duration: Constants.TIMING.ANIMATION_DURATION_MS,
                 easingFunction: 'easeInOutQuad'
             }
         });
+
+        Logger.debug('CallGraphViewer', 'Zoomed to text', { targetScale });
     }
 
     updateStats() {

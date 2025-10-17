@@ -1,5 +1,7 @@
 // Node collapse/expand operations and state management
 import { GraphConfig } from './GraphConfig.js';
+import { Logger } from './Logger.js';
+import { Constants } from './Constants.js';
 
 export class NodeOperations {
     constructor(viewer) {
@@ -10,6 +12,8 @@ export class NodeOperations {
     }
 
     collapseNode(nodeId, mode = 'both') {
+        Logger.debug('NodeOperations', 'Collapsing node', { nodeId, mode });
+
         const viewPosition = this.viewer.network.getViewPosition();
         const scale = this.viewer.network.getScale();
         
@@ -68,10 +72,15 @@ export class NodeOperations {
     }
 
     expandNode(nodeId, mode = 'both') {
+        Logger.debug('NodeOperations', 'Expanding node', { nodeId, mode });
+
         const scale = this.viewer.network.getScale();
         const collapseState = this.collapsedNodes.get(nodeId);
         
-        if (!collapseState) return;
+        if (!collapseState) {
+            Logger.warn('NodeOperations', 'Attempted to expand node with no collapse state', { nodeId });
+            return;
+        }
 
         if (mode === 'outgoing' || mode === 'both') {
             collapseState.outgoing = false;
@@ -229,9 +238,9 @@ export class NodeOperations {
             borderWidth: 2
         });
         
-        // Fade to normal over 3 seconds
-        const steps = 30;
-        const stepDuration = 3000 / steps;
+        // Fade to normal over configured duration
+        const steps = Constants.TIMING.FLASH_STEPS;
+        const stepDuration = Constants.TIMING.FLASH_DURATION_MS / steps;
         
         for (let i = 1; i <= steps; i++) {
             const timeoutId = setTimeout(() => {
@@ -328,11 +337,15 @@ export class NodeOperations {
     collapseAll() {
         if (!this.viewer.network || !this.viewer.originalData) return;
 
+        Logger.info('NodeOperations', 'Collapsing all nodes');
+
         const allEdges = this.viewer.originalData.edges.get();
         const nodesWithIncoming = new Set(allEdges.map(e => e.to));
         const allNodes = this.viewer.originalData.nodes.get();
         const entryFunctions = allNodes.filter(node => !nodesWithIncoming.has(node.id));
         const entryFunctionIds = new Set(entryFunctions.map(n => n.id));
+
+        Logger.debug('NodeOperations', 'Found entry functions', { count: entryFunctions.length });
 
         this.collapsedNodes.clear();
         this.viewer.hiddenNodes.clear();
@@ -363,6 +376,8 @@ export class NodeOperations {
     }
 
     expandAll() {
+        Logger.info('NodeOperations', 'Expanding all nodes');
+
         this.collapsedNodes.clear();
         this.viewer.hiddenNodes.clear();
         this.viewer.hiddenEdges.clear();

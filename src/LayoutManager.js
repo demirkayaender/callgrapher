@@ -1,5 +1,7 @@
 // Layout management, positioning, and overlap prevention
 import { GraphConfig } from './GraphConfig.js';
+import { Logger } from './Logger.js';
+import { Constants } from './Constants.js';
 
 export class LayoutManager {
     constructor(viewer) {
@@ -36,10 +38,14 @@ export class LayoutManager {
     fixHorizontalOverlaps() {
         const allNodes = this.viewer.nodes.get();
         if (allNodes.length === 0) return;
+
+        Logger.debug('LayoutManager', 'Fixing horizontal overlaps', { nodeCount: allNodes.length });
+
+        const start = performance.now();
         
-        const nodeWidth = 200;
-        const nodeHeight = 80;
-        const minSpacing = 40;
+        const nodeWidth = Constants.LAYOUT.NODE_WIDTH;
+        const nodeHeight = Constants.LAYOUT.NODE_HEIGHT;
+        const minSpacing = Constants.LAYOUT.MIN_SPACING;
         
         const nodeIds = allNodes.map(n => n.id);
         const positions = this.viewer.network.getPositions(nodeIds);
@@ -108,6 +114,12 @@ export class LayoutManager {
                 }
             }
         }
+
+        const duration = performance.now() - start;
+        Logger.perf('LayoutManager', 'fixHorizontalOverlaps', duration, { 
+            nodeCount: allNodes.length,
+            overlapCount: needsFixing.length 
+        });
     }
 
     groupOverlaps(overlaps) {
@@ -205,8 +217,11 @@ export class LayoutManager {
         });
         
         const circleX = (minX + maxX) / 2;
-        const circleY = maxY + 500;
-        const circleRadius = Math.max(200, Math.sqrt(isolatedNodes.length) * 80);
+        const circleY = maxY + Constants.LAYOUT.ISOLATED_OFFSET_Y;
+        const circleRadius = Math.max(
+            Constants.LAYOUT.CIRCLE_BASE_RADIUS, 
+            Math.sqrt(isolatedNodes.length) * Constants.LAYOUT.CIRCLE_RADIUS_MULTIPLIER
+        );
         
         const checkOverlap = (x, y, minDistance = 150) => {
             return existingPositions.some(pos => {
@@ -253,6 +268,8 @@ export class LayoutManager {
     }
 
     resetToOriginalPositions() {
+        Logger.info('LayoutManager', 'Resetting to original positions');
+
         this.viewer.nodes.get().forEach((node) => {
             const originalPos = this.originalPositions.get(node.id);
             if (originalPos) {

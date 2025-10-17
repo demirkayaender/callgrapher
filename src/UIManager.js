@@ -1,4 +1,5 @@
 // UI event handling and control management
+import { Logger } from './Logger.js';
 
 export class UIManager {
     constructor(viewer) {
@@ -241,6 +242,8 @@ export class UIManager {
 
         const nodeId = this.contextMenuNode;
         this.viewer.nodeOps.lastActionNode = nodeId;
+        
+        Logger.debug('UIManager', 'Context menu action', { nodeId, action });
         
         switch (action) {
             case 'collapse-outgoing':

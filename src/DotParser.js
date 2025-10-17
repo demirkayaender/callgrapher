@@ -1,4 +1,5 @@
 // DOT file parsing functionality
+import { ErrorHandler } from './ErrorHandler.js';
 
 export class DotParser {
     constructor(viewer) {
@@ -9,7 +10,15 @@ export class DotParser {
         return new Promise((resolve, reject) => {
             const reader = new FileReader();
             reader.onload = (e) => resolve(e.target.result);
-            reader.onerror = reject;
+            reader.onerror = (error) => {
+                ErrorHandler.handle(
+                    new Error('Failed to read file'),
+                    'DotParser.readFile',
+                    'Unable to read the selected file. Please check file permissions.',
+                    { fileName: file.name }
+                );
+                reject(error);
+            };
             reader.readAsText(file);
         });
     }

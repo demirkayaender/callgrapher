@@ -1,4 +1,6 @@
 // Search and fuzzy matching functionality
+import { Logger } from './Logger.js';
+import { Constants } from './Constants.js';
 
 export class SearchManager {
     constructor(viewer) {
@@ -20,10 +22,12 @@ export class SearchManager {
         if (!targetNode) {
             this.viewer.network.unselectAll();
             this.lastSearchedNode = null;
+            Logger.debug('SearchManager', 'No match found', { query });
             return;
         }
         
         this.lastSearchedNode = targetNode.id;
+        Logger.debug('SearchManager', 'Node found and selected', { query, nodeId: targetNode.id });
         
         const nodePosition = this.getNodePosition(targetNode.id);
         if (!nodePosition) {
@@ -32,15 +36,15 @@ export class SearchManager {
         }
 
         // Calculate zoom for readable text
-        const minTextSize = 12;
-        const nodeFontSize = 14;
+        const minTextSize = Constants.SEARCH.MIN_TEXT_SIZE_PX;
+        const nodeFontSize = Constants.SEARCH.NODE_FONT_SIZE_PX;
         const targetScale = minTextSize / nodeFontSize;
 
         this.viewer.network.moveTo({
             position: nodePosition,
             scale: targetScale,
             animation: {
-                duration: 500,
+                duration: Constants.TIMING.ANIMATION_DURATION_MS,
                 easingFunction: 'easeInOutQuad'
             }
         });
