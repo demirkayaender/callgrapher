@@ -65,6 +65,9 @@ class GoParser {
                 const funcName = match[1];
                 const fullName = `${packageName}.${funcName}`;
                 
+                // Calculate line number from position
+                const lineNumber = this.getLineNumber(content, match.index);
+                
                 // Get the function body to analyze calls
                 const funcStart = match.index + match[0].length;
                 const funcBody = this.extractFunctionBody(content, funcStart);
@@ -75,12 +78,21 @@ class GoParser {
                     name: funcName,
                     package: packageName,
                     file: filePath,
+                    line: lineNumber,
                     calls: calls
                 });
             }
         } catch (error) {
             console.error(`Error parsing ${filePath}:`, error);
         }
+    }
+
+    /**
+     * Calculate line number from character position in content
+     */
+    getLineNumber(content, position) {
+        const upToPosition = content.substring(0, position);
+        return upToPosition.split('\n').length;
     }
 
     /**
@@ -237,9 +249,10 @@ class GoParser {
             nodeIds.set(funcName, nodeId);
             // Use function name without package for label
             const label = funcName.split('.').pop();
-            // Add file path as an attribute if available
+            // Add file path and line number as attributes if available
             const fileAttr = funcData && funcData.file ? ` file="${funcData.file}"` : '';
-            dot += `    ${nodeId} [label="${label}"${fileAttr}];\n`;
+            const lineAttr = funcData && funcData.line ? ` line="${funcData.line}"` : '';
+            dot += `    ${nodeId} [label="${label}"${fileAttr}${lineAttr}];\n`;
         });
         
         dot += '\n';

@@ -342,11 +342,14 @@ export class UIManager {
         `;
         
         const filePath = node.file || node.path || node.filepath || node.location;
+        const lineNumber = node.line || node.lineNumber;
+        
         if (filePath) {
+            const fileDisplay = lineNumber ? `${filePath}:${lineNumber}` : filePath;
             html += `
                 <div class="property">
                     <span class="property-label">File:</span>
-                    <div class="property-value" style="word-break: break-all;">${filePath}</div>
+                    <div class="property-value" style="word-break: break-all;">${fileDisplay}</div>
                 </div>
             `;
         }
@@ -369,7 +372,7 @@ export class UIManager {
         // Add custom attributes
         Object.keys(node).forEach((key) => {
             if (!['id', 'label', 'x', 'y', 'font', 'color', 'shape', 'margin', 'widthConstraint', 
-                  'borderWidth', 'file', 'path', 'filepath', 'location', 'fixed', 'physics', 
+                  'borderWidth', 'file', 'path', 'filepath', 'location', 'line', 'lineNumber', 'fixed', 'physics', 
                   'shapeProperties', 'originalLabel', 'originalFontColor'].includes(key)) {
                 html += `
                     <div class="property">
