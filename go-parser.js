@@ -57,31 +57,86 @@ class GoParser {
             const packageMatch = content.match(/^\s*package\s+(\w+)/m);
             const packageName = packageMatch ? packageMatch[1] : 'main';
             
-            // Find all function definitions
-            const functionRegex = /func\s+(?:\([^)]*\)\s+)?(\w+)\s*\([^)]*\)/g;
-            let match;
+            // Find all function definitions using a more robust approach
+            // Split by lines and look for function declarations
+            const lines = content.split('\n');
+            let currentPos = 0;
             
-            while ((match = functionRegex.exec(content)) !== null) {
-                const funcName = match[1];
-                const fullName = `${packageName}.${funcName}`;
+            for (let i = 0; i < lines.length; i++) {
+                const line = lines[i];
+                const trimmedLine = line.trim();
                 
-                // Calculate line number from position
-                const lineNumber = this.getLineNumber(content, match.index);
+                // Skip comments and blank lines
+                if (trimmedLine.startsWith('//') || trimmedLine.startsWith('/*') || trimmedLine === '') {
+                    currentPos += line.length + 1; // +1 for newline
+                    continue;
+                }
                 
-                // Get the function body to analyze calls
-                const funcStart = match.index + match[0].length;
-                const funcBody = this.extractFunctionBody(content, funcStart);
+                // Match function declarations
+                // Handles: func name(), func (r Receiver) name(), func name[T any]()
+                const funcMatch = trimmedLine.match(/^func\s+(?:\([^)]+\)\s+)?(\w+)(?:\[[^\]]+\])?\s*\(/);
                 
-                const calls = this.extractFunctionCalls(funcBody);
+                if (funcMatch) {
+                    const funcName = funcMatch[1];
+                    const fullName = `${packageName}.${funcName}`;
+                    const lineNumber = i + 1; // Line numbers are 1-indexed
+                    
+                    // Find the position in content for this line
+                    const funcPos = currentPos + line.indexOf('func');
+                    
+                    // Find where parameters end - need to handle nested parens
+                    let parenDepth = 0;
+                    let paramStart = currentPos + line.indexOf('(', line.indexOf(funcName));
+                    let paramEnd = paramStart;
+                    let inString = false;
+                    let stringChar = '';
+                    
+                    for (let pos = paramStart; pos < content.length; pos++) {
+                        const char = content[pos];
+                        
+                        // Handle strings
+                        if ((char === '"' || char === '`') && content[pos - 1] !== '\\') {
+                            if (!inString) {
+                                inString = true;
+                                stringChar = char;
+                            } else if (char === stringChar) {
+                                inString = false;
+                            }
+                        }
+                        
+                        if (!inString) {
+                            if (char === '(') parenDepth++;
+                            if (char === ')') {
+                                parenDepth--;
+                                if (parenDepth === 0) {
+                                    paramEnd = pos;
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                    
+                    // Get the function body to analyze calls
+                    const funcStart = paramEnd + 1;
+                    const funcBody = this.extractFunctionBody(content, funcStart);
+                    
+                    if (funcBody) {
+                        const calls = this.extractFunctionCalls(funcBody);
+                        
+                        this.functions.set(fullName, {
+                            name: funcName,
+                            package: packageName,
+                            file: filePath,
+                            line: lineNumber,
+                            calls: calls
+                        });
+                    }
+                }
                 
-                this.functions.set(fullName, {
-                    name: funcName,
-                    package: packageName,
-                    file: filePath,
-                    line: lineNumber,
-                    calls: calls
-                });
+                currentPos += line.length + 1; // +1 for newline
             }
+            
+            console.log(`Parsed ${filePath}: found ${this.functions.size} total functions`);
         } catch (error) {
             console.error(`Error parsing ${filePath}:`, error);
         }
@@ -102,22 +157,74 @@ class GoParser {
         let braceCount = 0;
         let inBody = false;
         let body = '';
+        let inString = false;
+        let stringChar = '';
+        let inLineComment = false;
+        let inBlockComment = false;
         
         for (let i = startPos; i < content.length; i++) {
             const char = content[i];
+            const nextChar = i + 1 < content.length ? content[i + 1] : '';
+            const prevChar = i > 0 ? content[i - 1] : '';
             
-            if (char === '{') {
-                braceCount++;
-                inBody = true;
-            } else if (char === '}') {
-                braceCount--;
-                if (braceCount === 0 && inBody) {
-                    break;
+            // Handle comments (only outside strings)
+            if (!inString) {
+                // Start of block comment
+                if (char === '/' && nextChar === '*' && !inLineComment) {
+                    inBlockComment = true;
+                    i++; // Skip next char
+                    continue;
+                }
+                // End of block comment
+                if (char === '*' && nextChar === '/' && inBlockComment) {
+                    inBlockComment = false;
+                    i++; // Skip next char
+                    continue;
+                }
+                // Start of line comment
+                if (char === '/' && nextChar === '/' && !inBlockComment) {
+                    inLineComment = true;
+                    continue;
+                }
+                // End of line comment
+                if (char === '\n' && inLineComment) {
+                    inLineComment = false;
+                    continue;
+                }
+            }
+            
+            // Skip if in comment
+            if (inLineComment || inBlockComment) {
+                continue;
+            }
+            
+            // Handle strings
+            if ((char === '"' || char === '`') && prevChar !== '\\') {
+                if (!inString) {
+                    inString = true;
+                    stringChar = char;
+                } else if (char === stringChar) {
+                    inString = false;
+                }
+            }
+            
+            // Count braces only outside strings and comments
+            if (!inString) {
+                if (char === '{') {
+                    braceCount++;
+                    inBody = true;
+                } else if (char === '}') {
+                    braceCount--;
                 }
             }
             
             if (inBody) {
                 body += char;
+                
+                // Stop when we've closed all braces (outside strings)
+                if (braceCount === 0 && !inString) {
+                    break;
+                }
             }
         }
         
@@ -189,6 +296,8 @@ class GoParser {
     buildCallGraph() {
         const edges = [];
         
+        console.log(`Building call graph with ${this.functions.size} functions`);
+        
         // For each function, resolve its calls
         for (const [callerName, callerData] of this.functions.entries()) {
             const callerPackage = callerData.package;
@@ -225,6 +334,8 @@ class GoParser {
                 }
             }
         }
+        
+        console.log(`Generated ${edges.length} edges`);
         
         return {
             functions: this.functions,  // Return the full Map, not just keys
