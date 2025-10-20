@@ -103,15 +103,41 @@ export class SearchManager {
                 item.classList.add('selected');
             }
             
-            const label = document.createElement('span');
+            // Create content container for label and file info
+            const contentContainer = document.createElement('div');
+            contentContainer.className = 'search-suggestion-content';
+            
+            const label = document.createElement('div');
             label.className = 'search-suggestion-label';
             label.textContent = suggestion.label;
+            
+            contentContainer.appendChild(label);
+            
+            // Add file and line info if available
+            const node = suggestion.node;
+            const filePath = node.file || node.path || node.filepath || node.location;
+            const lineNumber = node.line || node.lineNumber;
+            
+            if (filePath || lineNumber) {
+                const fileInfo = document.createElement('div');
+                fileInfo.className = 'search-suggestion-file';
+                
+                if (filePath && lineNumber) {
+                    fileInfo.textContent = `${filePath}:${lineNumber}`;
+                } else if (filePath) {
+                    fileInfo.textContent = filePath;
+                } else if (lineNumber) {
+                    fileInfo.textContent = `Line ${lineNumber}`;
+                }
+                
+                contentContainer.appendChild(fileInfo);
+            }
             
             const badge = document.createElement('span');
             badge.className = `search-suggestion-badge ${suggestion.isVisible ? 'badge-visible' : 'badge-hidden'}`;
             badge.textContent = suggestion.isVisible ? 'Visible' : 'Hidden';
             
-            item.appendChild(label);
+            item.appendChild(contentContainer);
             item.appendChild(badge);
             
             item.addEventListener('click', () => {
