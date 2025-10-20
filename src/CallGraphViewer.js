@@ -22,6 +22,7 @@ export class CallGraphViewer {
         this.hiddenNodes = new Set();
         this.hiddenEdges = new Set();
         this.showIsolatedNodes = false;
+        this.isLargeGraphFiltered = false;
         
         // Initialize all managers
         this.dotParser = new DotParser(this);
@@ -138,14 +139,28 @@ export class CallGraphViewer {
             // Calculate chain statistics
             this.calculateChainStatistics();
             
+            // Check if we need to filter large graphs
+            if (parsedData.nodes.length >= Constants.LARGE_GRAPH.NODE_THRESHOLD) {
+                Logger.info('CallGraphViewer', 'Triggering large graph filter', { nodeCount: parsedData.nodes.length });
+                this.filterLargeGraph();
+            } else {
+                this.isLargeGraphFiltered = false;
+                this.hideLargeGraphWarning();
+            }
+            
             this.renderGraph();
             this.updateStats();
         } catch (error) {
+            Logger.error('CallGraphViewer', 'Error in parseDotFile', { 
+                error: error.message,
+                stack: error.stack,
+                contentLength: dotContent.length 
+            });
             ErrorHandler.handle(
                 error,
                 'CallGraphViewer.parseDotFile',
                 'Failed to parse DOT file. Please check that the file is in valid DOT format.',
-                { contentLength: dotContent.length }
+                { contentLength: dotContent.length, errorMessage: error.message }
             );
         }
     }
@@ -237,6 +252,187 @@ export class CallGraphViewer {
         visited.delete(nodeId);
         
         return maxChain;
+    }
+
+    filterLargeGraph() {
+        Logger.info('CallGraphViewer', 'Filtering large graph', { 
+            totalNodes: this.originalData.nodes.length 
+        });
+
+        const allEdges = this.originalData.edges.get();
+        const allNodes = this.originalData.nodes.get();
+
+        // Find all root nodes (nodes with no incoming calls but have outgoing calls)
+        const rootNodes = [];
+        allNodes.forEach(node => {
+            const hasIncoming = allEdges.some(e => e.to === node.id);
+            const hasOutgoing = allEdges.some(e => e.from === node.id);
+            
+            if (!hasIncoming && hasOutgoing) {
+                rootNodes.push(node.id);
+            }
+        });
+
+        Logger.info('CallGraphViewer', 'Found root nodes', { 
+            totalRoots: rootNodes.length 
+        });
+
+        // Take first 10 root nodes
+        const selectedRoots = rootNodes.slice(0, Constants.LARGE_GRAPH.TOP_NODES_COUNT);
+
+        // Find all nodes reachable from these root nodes (BFS)
+        const visibleNodeIds = new Set();
+        selectedRoots.forEach(rootId => {
+            const queue = [rootId];
+            visibleNodeIds.add(rootId);
+            
+            while (queue.length > 0) {
+                const currentId = queue.shift();
+                
+                // Add all outgoing nodes
+                allEdges.forEach(edge => {
+                    if (edge.from === currentId && !visibleNodeIds.has(edge.to)) {
+                        visibleNodeIds.add(edge.to);
+                        queue.push(edge.to);
+                    }
+                });
+            }
+        });
+
+        // Find visible edges (edges where both nodes are visible)
+        const visibleEdgeIds = new Set();
+        allEdges.forEach(edge => {
+            if (visibleNodeIds.has(edge.from) && visibleNodeIds.has(edge.to)) {
+                visibleEdgeIds.add(`${edge.from}-${edge.to}`);
+            }
+        });
+
+        // Hide all nodes NOT in the visible set
+        this.hiddenNodes.clear();
+        this.hiddenEdges.clear();
+        
+        allNodes.forEach(node => {
+            if (!visibleNodeIds.has(node.id)) {
+                this.hiddenNodes.add(node.id);
+            }
+        });
+
+        allEdges.forEach(edge => {
+            const edgeId = `${edge.from}-${edge.to}`;
+            if (!visibleEdgeIds.has(edgeId)) {
+                this.hiddenEdges.add(edgeId);
+            }
+        });
+
+        this.isLargeGraphFiltered = true;
+        this.showLargeGraphWarning();
+
+        // Remove hidden nodes and edges from the DataSets
+        const nodesToRemove = Array.from(this.hiddenNodes);
+        if (nodesToRemove.length > 0) {
+            this.nodes.remove(nodesToRemove);
+        }
+
+        // Remove hidden edges
+        // Match edges by from-to, but remove by their DataSet ID
+        const allVisEdges = this.edges.get();
+        const edgesToRemove = allVisEdges
+            .filter(edge => {
+                const edgeId = `${edge.from}-${edge.to}`;
+                return this.hiddenEdges.has(edgeId);
+            })
+            .map(edge => edge.id);
+        
+        if (edgesToRemove.length > 0) {
+            this.edges.remove(edgesToRemove);
+        }
+
+        Logger.info('CallGraphViewer', 'Large graph filtered', { 
+            visibleNodes: visibleNodeIds.size,
+            hiddenNodes: this.hiddenNodes.size,
+            showingRoots: selectedRoots.length
+        });
+    }
+
+    showLargeGraphWarning() {
+        const warning = document.getElementById('large-graph-warning');
+        if (warning) {
+            warning.style.display = 'flex';
+            warning.classList.remove('fadeout');
+            
+            // Add window-level click handler to dismiss the warning
+            const dismissHandler = (e) => {
+                this.hideLargeGraphWarning();
+                window.removeEventListener('click', dismissHandler);
+            };
+            
+            // Use setTimeout to avoid immediate dismissal from the same click event
+            setTimeout(() => {
+                window.addEventListener('click', dismissHandler, { once: true });
+            }, 100);
+        }
+    }
+
+    hideLargeGraphWarning() {
+        const warning = document.getElementById('large-graph-warning');
+        if (warning) {
+            warning.classList.add('fadeout');
+            setTimeout(() => {
+                warning.style.display = 'none';
+                warning.classList.remove('fadeout');
+            }, 300); // Match the CSS transition duration
+        }
+    }
+
+    revealNodePath(nodeId) {
+        if (!this.isLargeGraphFiltered) return;
+
+        Logger.info('CallGraphViewer', 'Revealing node path', { nodeId });
+
+        const allEdges = this.originalData.edges.get();
+        
+        // Find all nodes connected to this node (both incoming and outgoing)
+        const nodesToReveal = new Set([nodeId]);
+        const queue = [nodeId];
+        
+        // BFS to find all connected nodes
+        while (queue.length > 0) {
+            const currentId = queue.shift();
+            
+            allEdges.forEach(edge => {
+                // Add outgoing connections
+                if (edge.from === currentId && !nodesToReveal.has(edge.to)) {
+                    nodesToReveal.add(edge.to);
+                    queue.push(edge.to);
+                }
+                // Add incoming connections
+                if (edge.to === currentId && !nodesToReveal.has(edge.from)) {
+                    nodesToReveal.add(edge.from);
+                    queue.push(edge.from);
+                }
+            });
+        }
+
+        // Remove nodes from hiddenNodes
+        nodesToReveal.forEach(id => {
+            this.hiddenNodes.delete(id);
+        });
+
+        // Update hidden edges
+        allEdges.forEach(edge => {
+            const edgeId = `${edge.from}-${edge.to}`;
+            if (!this.hiddenNodes.has(edge.from) && !this.hiddenNodes.has(edge.to)) {
+                this.hiddenEdges.delete(edgeId);
+            }
+        });
+
+        // Re-render graph with new visibility
+        this.updateGraphVisibility();
+        this.updateStats();
+
+        Logger.info('CallGraphViewer', 'Node path revealed', { 
+            revealedCount: nodesToReveal.size 
+        });
     }
 
     applyDefaultStyling() {
@@ -646,6 +842,14 @@ export class CallGraphViewer {
                     this.hiddenNodes.add(node.id);
                 }
             });
+        }
+
+        // Apply large graph filtering if needed
+        if (this.originalData.nodes.length >= Constants.LARGE_GRAPH.NODE_THRESHOLD) {
+            this.filterLargeGraph();
+        } else {
+            this.isLargeGraphFiltered = false;
+            this.hideLargeGraphWarning();
         }
 
         // Restore all nodes

@@ -48,6 +48,12 @@ export class Constants {
         MAX_OVERLAP_ATTEMPTS: 100,         // Max attempts to find non-overlapping position
     };
     
+    // Large graph filtering
+    static LARGE_GRAPH = {
+        NODE_THRESHOLD: 50,                // Node count to trigger filtering
+        TOP_NODES_COUNT: 10,               // Number of top chains to show
+    };
+    
     // Physics simulation parameters
     static PHYSICS = {
         // Hierarchical repulsion (initial layout)

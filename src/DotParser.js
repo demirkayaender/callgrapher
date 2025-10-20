@@ -58,7 +58,15 @@ export class DotParser {
                 const fileMatch = attributes.match(/file="([^"]+)"/);
                 const file = fileMatch ? fileMatch[1] : null;
 
-                nodes.set(nodeId, { id: nodeId, label, file });
+                // Extract line attribute if present
+                const lineMatch = attributes.match(/line="([^"]+)"/);
+                const line = lineMatch ? parseInt(lineMatch[1], 10) : null;
+
+                const nodeData = { id: nodeId, label };
+                if (file) nodeData.file = file;
+                if (line) nodeData.line = line;
+                
+                nodes.set(nodeId, nodeData);
                 continue;
             }
 

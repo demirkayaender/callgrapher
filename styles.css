@@ -617,6 +617,41 @@ header h1 {
     animation: slideOut 0.3s ease-in;
 }
 
+/* Large graph warning banner */
+.large-graph-warning {
+    position: absolute;
+    top: 0;
+    left: 60px;  /* Leave space for toolbar sidebar */
+    right: 0;
+    background-color: #fff3cd;
+    color: #856404;
+    border-bottom: 2px solid #ffc107;
+    padding: 8px 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    z-index: 100;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: opacity 0.3s ease, background-color 0.2s ease;
+    opacity: 1;
+}
+
+.large-graph-warning:hover {
+    background-color: #ffe8a1;
+}
+
+.large-graph-warning.fadeout {
+    opacity: 0;
+}
+
+.large-graph-warning i {
+    font-size: 16px;
+}
+
 @keyframes slideIn {
     from {
         transform: translateX(400px);
