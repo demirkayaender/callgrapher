@@ -261,11 +261,24 @@ export class NodeOperations {
     applyNormalAppearance(nodeId, collapseState) {
         const colors = GraphConfig.getNodeColors(collapseState);
         
+        // Apply folder-based border color if not collapsed
+        let borderColor = colors.border;
+        if (!collapseState || (!collapseState.outgoing && !collapseState.incoming)) {
+            const node = this.viewer.nodes.get(nodeId);
+            if (node) {
+                const filePath = node.file || node.path || node.filepath || node.location;
+                const folderName = this.viewer.getFolderFromPath(filePath);
+                if (folderName) {
+                    borderColor = this.viewer.getFolderColor(folderName);
+                }
+            }
+        }
+        
         this.viewer.nodes.update({
             id: nodeId,
             color: {
                 background: colors.background,
-                border: colors.border,
+                border: borderColor,
                 highlight: {
                     background: colors.highlightBg,
                     border: colors.highlightBorder
@@ -285,13 +298,26 @@ export class NodeOperations {
         const flashColors = GraphConfig.getFlashColors();
         const normalColors = GraphConfig.getNodeColors(collapseState);
         
+        // Apply folder-based border color if not collapsed
+        let targetBorderColor = normalColors.border;
+        if (!collapseState || (!collapseState.outgoing && !collapseState.incoming)) {
+            const node = this.viewer.nodes.get(nodeId);
+            if (node) {
+                const filePath = node.file || node.path || node.filepath || node.location;
+                const folderName = this.viewer.getFolderFromPath(filePath);
+                if (folderName) {
+                    targetBorderColor = this.viewer.getFolderColor(folderName);
+                }
+            }
+        }
+        
         // RGB values for interpolation
         const startBg = { r: 255, g: 215, b: 0 };
         const startBorder = { r: 245, g: 127, b: 23 };
         const startFont = { r: 0, g: 0, b: 0 };
         
         const endBg = this.hexToRgb(normalColors.background);
-        const endBorder = this.hexToRgb(normalColors.border);
+        const endBorder = this.parseColorToRgb(targetBorderColor);
         const endFont = this.hexToRgb(normalColors.fontColor);
         
         const lerp = (start, end, t) => Math.round(start + (end - start) * t);
@@ -323,6 +349,54 @@ export class NodeOperations {
         const b = parseInt(hex.substring(4, 6), 16);
         
         return { r, g, b };
+    }
+
+    parseColorToRgb(color) {
+        // Handle hex colors
+        if (color.startsWith('#')) {
+            return this.hexToRgb(color);
+        }
+        
+        // Handle HSL colors
+        if (color.startsWith('hsl')) {
+            // Parse HSL values
+            const match = color.match(/hsl\((\d+),\s*(\d+)%,\s*(\d+)%\)/);
+            if (match) {
+                const h = parseInt(match[1]) / 360;
+                const s = parseInt(match[2]) / 100;
+                const l = parseInt(match[3]) / 100;
+                
+                // Convert HSL to RGB
+                let r, g, b;
+                if (s === 0) {
+                    r = g = b = l; // achromatic
+                } else {
+                    const hue2rgb = (p, q, t) => {
+                        if (t < 0) t += 1;
+                        if (t > 1) t -= 1;
+                        if (t < 1/6) return p + (q - p) * 6 * t;
+                        if (t < 1/2) return q;
+                        if (t < 2/3) return p + (q - p) * (2/3 - t) * 6;
+                        return p;
+                    };
+                    
+                    const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+                    const p = 2 * l - q;
+                    r = hue2rgb(p, q, h + 1/3);
+                    g = hue2rgb(p, q, h);
+                    b = hue2rgb(p, q, h - 1/3);
+                }
+                
+                return {
+                    r: Math.round(r * 255),
+                    g: Math.round(g * 255),
+                    b: Math.round(b * 255)
+                };
+            }
+        }
+        
+        // Fallback to default
+        return { r: 74, g: 144, b: 226 };
     }
 
     toggleNodeCollapse(nodeId) {

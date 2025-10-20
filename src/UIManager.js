@@ -414,6 +414,21 @@ export class UIManager {
                     <div class="property-value" style="word-break: break-all;">${fileDisplay}</div>
                 </div>
             `;
+            
+            // Extract and display folder name
+            const folderName = this.viewer.getFolderFromPath(filePath);
+            if (folderName) {
+                const folderColor = this.viewer.getFolderColor(folderName);
+                html += `
+                    <div class="property">
+                        <span class="property-label">Folder:</span>
+                        <div class="property-value">
+                            <span style="display: inline-block; width: 12px; height: 12px; background-color: ${folderColor}; border-radius: 2px; margin-right: 6px; vertical-align: middle;"></span>
+                            ${folderName}
+                        </div>
+                    </div>
+                `;
+            }
         }
         
         html += `

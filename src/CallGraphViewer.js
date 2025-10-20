@@ -435,17 +435,78 @@ export class CallGraphViewer {
         });
     }
 
+    // Extract the deepest folder name from a file path
+    getFolderFromPath(filePath) {
+        if (!filePath) return null;
+        
+        // Split by / or \
+        const parts = filePath.split(/[/\\]/);
+        
+        // Get the folder part (everything except the last part which is the filename)
+        if (parts.length <= 1) return null;
+        
+        // Return the deepest folder (second to last part)
+        return parts[parts.length - 2];
+    }
+
+    // Generate a consistent color from a folder name
+    getFolderColor(folderName) {
+        if (!folderName) return '#4a90e2'; // Default blue
+        
+        // Simple hash function to generate a number from the folder name
+        let hash = 0;
+        for (let i = 0; i < folderName.length; i++) {
+            hash = folderName.charCodeAt(i) + ((hash << 5) - hash);
+            hash = hash & hash; // Convert to 32-bit integer
+        }
+        
+        // Generate HSL color (hue from hash, medium saturation and lightness for visibility)
+        const hue = Math.abs(hash) % 360;
+        const saturation = 65; // Medium saturation for good visibility
+        const lightness = 45;  // Medium lightness for contrast
+        
+        return `hsl(${hue}, ${saturation}%, ${lightness}%)`;
+    }
+
     applyDefaultStyling() {
         const nodeDefaults = GraphConfig.getNodeDefaults();
         const edgeDefaults = GraphConfig.getEdgeDefaults();
         
+        const folderColorMap = new Map();
+        
         this.nodes.forEach((node) => {
-            this.nodes.update({ id: node.id, ...nodeDefaults });
+            const styling = { ...nodeDefaults };
+            
+            // Apply folder-based border color
+            const filePath = node.file || node.path || node.filepath || node.location;
+            const folderName = this.getFolderFromPath(filePath);
+            
+            if (folderName) {
+                const color = this.getFolderColor(folderName);
+                styling.color = {
+                    ...nodeDefaults.color,
+                    border: color
+                };
+                
+                // Track unique folders for logging
+                if (!folderColorMap.has(folderName)) {
+                    folderColorMap.set(folderName, color);
+                }
+            }
+            
+            this.nodes.update({ id: node.id, ...styling });
         });
 
         this.edges.forEach((edge) => {
             this.edges.update({ id: edge.id, ...edgeDefaults });
         });
+        
+        if (folderColorMap.size > 0) {
+            Logger.info('CallGraphViewer', 'Applied folder-based colors', { 
+                folderCount: folderColorMap.size,
+                folders: Array.from(folderColorMap.keys())
+            });
+        }
     }
 
     renderGraph() {
@@ -756,6 +817,16 @@ export class CallGraphViewer {
         
         const pos = position || this.layoutManager.originalPositions.get(node.id) || {};
         
+        // Apply folder-based border color if not collapsed
+        let borderColor = colors.border;
+        if (!collapseState || (!collapseState.outgoing && !collapseState.incoming)) {
+            const filePath = node.file || node.path || node.filepath || node.location;
+            const folderName = this.getFolderFromPath(filePath);
+            if (folderName) {
+                borderColor = this.getFolderColor(folderName);
+            }
+        }
+        
         this.nodes.add({
             ...node,
             x: pos.x,
@@ -767,7 +838,7 @@ export class CallGraphViewer {
             },
             color: {
                 background: colors.background,
-                border: colors.border,
+                border: borderColor,
                 highlight: {
                     background: colors.highlightBg,
                     border: colors.highlightBorder
@@ -784,6 +855,14 @@ export class CallGraphViewer {
     addIsolatedNode(node, position) {
         const colors = GraphConfig.getIsolatedNodeColors();
         
+        // Apply folder-based border color for isolated nodes
+        let borderColor = colors.border;
+        const filePath = node.file || node.path || node.filepath || node.location;
+        const folderName = this.getFolderFromPath(filePath);
+        if (folderName) {
+            borderColor = this.getFolderColor(folderName);
+        }
+        
         this.nodes.add({
             ...node,
             x: position.x,
@@ -791,7 +870,7 @@ export class CallGraphViewer {
             font: { size: 14, color: colors.fontColor },
             color: {
                 background: colors.background,
-                border: colors.border,
+                border: borderColor,
                 highlight: {
                     background: colors.highlightBg,
                     border: colors.highlightBorder
