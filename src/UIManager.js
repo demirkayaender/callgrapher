@@ -54,25 +54,87 @@ export class UIManager {
     }
 
     setupSearchHandlers() {
-        document.getElementById('node-search').addEventListener('input', (e) => 
-            this.viewer.searchManager.searchNode(e.target.value)
-        );
+        const searchInput = document.getElementById('node-search');
         
-        document.getElementById('node-search').addEventListener('keydown', (e) => {
+        // Initialize suggestions container
+        this.viewer.searchManager.initializeSuggestions();
+        
+        // Show suggestions on input
+        searchInput.addEventListener('input', (e) => {
+            this.viewer.searchManager.showSuggestions(e.target.value);
+        });
+        
+        // Handle keyboard navigation
+        searchInput.addEventListener('keydown', (e) => {
+            const query = e.target.value;
+            
+            // Up/Down arrow navigation
+            if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                this.viewer.searchManager.navigateSuggestions('down');
+                return;
+            }
+            
+            if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                this.viewer.searchManager.navigateSuggestions('up');
+                return;
+            }
+            
+            // Right arrow for autocomplete
+            if (e.key === 'ArrowRight') {
+                const autocomplete = this.viewer.searchManager.autocompleteFromSuggestion();
+                if (autocomplete) {
+                    e.preventDefault();
+                    searchInput.value = autocomplete;
+                    searchInput.focus();
+                    // Move cursor to end
+                    searchInput.setSelectionRange(autocomplete.length, autocomplete.length);
+                    // Update suggestions
+                    this.viewer.searchManager.showSuggestions(autocomplete);
+                }
+                return;
+            }
+            
+            // Enter key
             if (e.key === 'Enter') {
-                const query = e.target.value;
+                e.preventDefault();
                 
+                // If empty, reset layout
                 if (!query || query.trim() === '') {
                     this.viewer.resetLayout();
+                    this.viewer.searchManager.hideSuggestions();
                     return;
                 }
                 
-                const matchedNode = this.viewer.searchManager.findMatchingNode(query);
-                if (matchedNode) {
-                    this.viewer.nodeOps.lastActionNode = matchedNode.id;
-                    this.viewer.hideOthers(matchedNode.id);
-                    this.viewer.updateStats();
+                // If a suggestion is selected, use it
+                if (this.viewer.searchManager.selectedSuggestionIndex >= 0) {
+                    this.viewer.searchManager.selectSuggestion(
+                        this.viewer.searchManager.selectedSuggestionIndex
+                    );
+                    searchInput.blur();
+                    return;
                 }
+                
+                // Otherwise, use first suggestion if available
+                if (this.viewer.searchManager.suggestions.length > 0) {
+                    this.viewer.searchManager.selectSuggestion(0);
+                    searchInput.blur();
+                }
+            }
+            
+            // Escape key to hide suggestions
+            if (e.key === 'Escape') {
+                this.viewer.searchManager.hideSuggestions();
+                searchInput.blur();
+            }
+        });
+        
+        // Hide suggestions when clicking outside
+        document.addEventListener('click', (e) => {
+            if (!searchInput.contains(e.target) && 
+                !document.getElementById('search-suggestions')?.contains(e.target)) {
+                this.viewer.searchManager.hideSuggestions();
             }
         });
     }
