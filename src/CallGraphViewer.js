@@ -113,40 +113,67 @@ export class CallGraphViewer {
         Logger.debug('CallGraphViewer', 'Parsing DOT file', { contentLength: dotContent.length });
 
         try {
+            // OPTIMIZED FLOW:
+            // 1. Parse DOT to raw data
+            // 2. Calculate statistics on raw data
+            // 3. Filter nodes BEFORE creating UI DataSets (performance!)
+            // 4. Create UI DataSets with filtered data only
+            // 5. Apply styling and render
+            
             const parsedData = vis.parseDOTNetwork(dotContent);
             
+            // Store original data for reference
             this.originalData = {
                 nodes: new vis.DataSet(parsedData.nodes),
                 edges: new vis.DataSet(parsedData.edges)
             };
-
-            this.nodes = new vis.DataSet(parsedData.nodes);
-            this.edges = new vis.DataSet(parsedData.edges);
 
             Logger.info('CallGraphViewer', 'DOT file parsed successfully', { 
                 nodeCount: parsedData.nodes.length, 
                 edgeCount: parsedData.edges.length 
             });
 
-            // Filter isolated nodes if needed
-            if (!this.showIsolatedNodes) {
-                this.filterIsolatedNodes();
-            }
-
-            // Apply default styling
-            this.applyDefaultStyling();
-            
-            // Calculate chain statistics
+            // Calculate chain statistics on raw data (before any filtering)
             this.calculateChainStatistics();
             
-            // Check if we need to filter large graphs
-            if (parsedData.nodes.length >= Constants.LARGE_GRAPH.NODE_THRESHOLD) {
-                Logger.info('CallGraphViewer', 'Triggering large graph filter', { nodeCount: parsedData.nodes.length });
-                this.filterLargeGraph();
+            // Get nodes with chain statistics from originalData
+            // (parsedData.nodes doesn't have the statistics)
+            const nodesWithStats = this.originalData.nodes.get();
+            const edgesData = this.originalData.edges.get();
+            
+            // Determine which nodes/edges to show BEFORE creating UI DataSets
+            let nodesToShow = nodesWithStats;
+            let edgesToShow = edgesData;
+            
+            // Filter large graphs first (most impactful)
+            if (nodesWithStats.length >= Constants.LARGE_GRAPH.NODE_THRESHOLD) {
+                Logger.info('CallGraphViewer', 'Applying large graph filter', { nodeCount: nodesWithStats.length });
+                const filtered = this.getFilteredGraphData(nodesWithStats, edgesData);
+                nodesToShow = filtered.nodes;
+                edgesToShow = filtered.edges;
+                this.isLargeGraphFiltered = true;
+                this.showLargeGraphWarning();
             } else {
                 this.isLargeGraphFiltered = false;
                 this.hideLargeGraphWarning();
             }
+            
+            // Filter isolated nodes if needed
+            if (!this.showIsolatedNodes) {
+                const allEdges = edgesToShow;
+                nodesToShow = nodesToShow.filter(node => {
+                    const hasIncoming = allEdges.some(e => e.to === node.id);
+                    const hasOutgoing = allEdges.some(e => e.from === node.id);
+                    return hasIncoming || hasOutgoing;
+                });
+            }
+            
+            // NOW create the UI DataSets with only the filtered nodes
+            this.nodes = new vis.DataSet(nodesToShow);
+            this.edges = new vis.DataSet(edgesToShow);
+            
+            // Apply styling to filtered nodes only
+            this.applyDefaultStyling();
             
             this.renderGraph();
             this.updateStats();
@@ -210,15 +237,15 @@ export class CallGraphViewer {
             const longestIncoming = this.findLongestChain(node.id, incomingEdges, new Set());
             const longestOutgoing = this.findLongestChain(node.id, outgoingEdges, new Set());
             
-            // Store in original data
+            // Store in original data (always update originalData)
             this.originalData.nodes.update({
                 id: node.id,
                 longestIncomingChain: longestIncoming,
                 longestOutgoingChain: longestOutgoing
             });
             
-            // Update visible nodes if they exist
-            if (this.nodes.get(node.id)) {
+            // Update visible nodes if they exist (this.nodes may not be created yet during initial parse)
+            if (this.nodes && this.nodes.get(node.id)) {
                 this.nodes.update({
                     id: node.id,
                     longestIncomingChain: longestIncoming,
@@ -254,13 +281,12 @@ export class CallGraphViewer {
         return maxChain;
     }
 
-    filterLargeGraph() {
-        Logger.info('CallGraphViewer', 'Filtering large graph', { 
-            totalNodes: this.originalData.nodes.length 
-        });
-
-        const allEdges = this.originalData.edges.get();
-        const allNodes = this.originalData.nodes.get();
+    // Returns filtered nodes and edges as plain arrays (for initial load)
+    // Can work with raw arrays or DataSets
+    getFilteredGraphData(nodesInput, edgesInput) {
+        // If no parameters provided, use originalData (for reset operations)
+        const allEdges = edgesInput || this.originalData.edges.get();
+        const allNodes = nodesInput || this.originalData.nodes.get();
 
         // Find all root nodes (nodes with no incoming calls but have outgoing calls)
         const rootNodes = [];
@@ -299,15 +325,13 @@ export class CallGraphViewer {
             }
         });
 
-        // Find visible edges (edges where both nodes are visible)
-        const visibleEdgeIds = new Set();
-        allEdges.forEach(edge => {
-            if (visibleNodeIds.has(edge.from) && visibleNodeIds.has(edge.to)) {
-                visibleEdgeIds.add(`${edge.from}-${edge.to}`);
-            }
-        });
+        // Filter nodes and edges
+        const filteredNodes = allNodes.filter(node => visibleNodeIds.has(node.id));
+        const filteredEdges = allEdges.filter(edge => 
+            visibleNodeIds.has(edge.from) && visibleNodeIds.has(edge.to)
+        );
 
-        // Hide all nodes NOT in the visible set
+        // Track hidden nodes/edges for later operations
         this.hiddenNodes.clear();
         this.hiddenEdges.clear();
         
@@ -319,11 +343,28 @@ export class CallGraphViewer {
 
         allEdges.forEach(edge => {
             const edgeId = `${edge.from}-${edge.to}`;
-            if (!visibleEdgeIds.has(edgeId)) {
+            if (!visibleNodeIds.has(edge.from) || !visibleNodeIds.has(edge.to)) {
                 this.hiddenEdges.add(edgeId);
             }
         });
 
+        Logger.info('CallGraphViewer', 'Large graph filtered', { 
+            visibleNodes: filteredNodes.length,
+            hiddenNodes: this.hiddenNodes.size,
+            showingRoots: selectedRoots.length
+        });
+
+        return { nodes: filteredNodes, edges: filteredEdges };
+    }
+
+    // For reset operations (works with existing DataSets)
+    filterLargeGraph() {
+        Logger.info('CallGraphViewer', 'Filtering large graph for reset', { 
+            totalNodes: this.originalData.nodes.length 
+        });
+
+        const filtered = this.getFilteredGraphData();
+        
         this.isLargeGraphFiltered = true;
         this.showLargeGraphWarning();
 
@@ -347,10 +388,9 @@ export class CallGraphViewer {
             this.edges.remove(edgesToRemove);
         }
 
-        Logger.info('CallGraphViewer', 'Large graph filtered', { 
-            visibleNodes: visibleNodeIds.size,
-            hiddenNodes: this.hiddenNodes.size,
-            showingRoots: selectedRoots.length
+        Logger.info('CallGraphViewer', 'Large graph filter applied to DataSets', { 
+            visibleNodes: filtered.nodes.length,
+            hiddenNodes: this.hiddenNodes.size
         });
     }
 
