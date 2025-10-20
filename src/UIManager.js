@@ -425,6 +425,31 @@ export class UIManager {
                 <span class="property-label">Outgoing Calls:</span>
                 <div class="property-value">${outgoingCalls}</div>
             </div>
+        `;
+        
+        // Add chain statistics if available
+        const longestIncoming = node.longestIncomingChain;
+        const longestOutgoing = node.longestOutgoingChain;
+        
+        if (longestIncoming !== undefined) {
+            html += `
+                <div class="property">
+                    <span class="property-label">Longest Incoming Chain:</span>
+                    <div class="property-value">${longestIncoming}</div>
+                </div>
+            `;
+        }
+        
+        if (longestOutgoing !== undefined) {
+            html += `
+                <div class="property">
+                    <span class="property-label">Longest Outgoing Chain:</span>
+                    <div class="property-value">${longestOutgoing}</div>
+                </div>
+            `;
+        }
+        
+        html += `
             <div class="property">
                 <span class="property-label">Status:</span>
                 <div class="property-value">${statusText}</div>
@@ -434,7 +459,8 @@ export class UIManager {
         // Add custom attributes
         Object.keys(node).forEach((key) => {
             if (!['id', 'label', 'x', 'y', 'font', 'color', 'shape', 'margin', 'widthConstraint', 
-                  'borderWidth', 'file', 'path', 'filepath', 'location', 'line', 'lineNumber', 'fixed', 'physics', 
+                  'borderWidth', 'file', 'path', 'filepath', 'location', 'line', 'lineNumber', 
+                  'longestIncomingChain', 'longestOutgoingChain', 'fixed', 'physics', 
                   'shapeProperties', 'originalLabel', 'originalFontColor'].includes(key)) {
                 html += `
                     <div class="property">

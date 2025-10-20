@@ -135,6 +135,9 @@ export class CallGraphViewer {
             // Apply default styling
             this.applyDefaultStyling();
             
+            // Calculate chain statistics
+            this.calculateChainStatistics();
+            
             this.renderGraph();
             this.updateStats();
         } catch (error) {
@@ -161,6 +164,79 @@ export class CallGraphViewer {
         });
         
         this.nodes.remove(isolatedNodeIds);
+    }
+
+    calculateChainStatistics() {
+        if (!this.originalData) return;
+        
+        const allEdges = this.originalData.edges.get();
+        const allNodes = this.originalData.nodes.get();
+        
+        // Build adjacency lists
+        const incomingEdges = new Map(); // nodeId -> [sourceNodes]
+        const outgoingEdges = new Map(); // nodeId -> [targetNodes]
+        
+        allNodes.forEach(node => {
+            incomingEdges.set(node.id, []);
+            outgoingEdges.set(node.id, []);
+        });
+        
+        allEdges.forEach(edge => {
+            if (outgoingEdges.has(edge.from)) {
+                outgoingEdges.get(edge.from).push(edge.to);
+            }
+            if (incomingEdges.has(edge.to)) {
+                incomingEdges.get(edge.to).push(edge.from);
+            }
+        });
+        
+        // Calculate longest chains for each node
+        allNodes.forEach(node => {
+            const longestIncoming = this.findLongestChain(node.id, incomingEdges, new Set());
+            const longestOutgoing = this.findLongestChain(node.id, outgoingEdges, new Set());
+            
+            // Store in original data
+            this.originalData.nodes.update({
+                id: node.id,
+                longestIncomingChain: longestIncoming,
+                longestOutgoingChain: longestOutgoing
+            });
+            
+            // Update visible nodes if they exist
+            if (this.nodes.get(node.id)) {
+                this.nodes.update({
+                    id: node.id,
+                    longestIncomingChain: longestIncoming,
+                    longestOutgoingChain: longestOutgoing
+                });
+            }
+        });
+        
+        Logger.info('CallGraphViewer', 'Chain statistics calculated');
+    }
+
+    findLongestChain(nodeId, edgeMap, visited) {
+        if (visited.has(nodeId)) {
+            return 0; // Cycle detection
+        }
+        
+        const neighbors = edgeMap.get(nodeId) || [];
+        
+        if (neighbors.length === 0) {
+            return 0;
+        }
+        
+        visited.add(nodeId);
+        
+        let maxChain = 0;
+        for (const neighbor of neighbors) {
+            const chainLength = 1 + this.findLongestChain(neighbor, edgeMap, visited);
+            maxChain = Math.max(maxChain, chainLength);
+        }
+        
+        visited.delete(nodeId);
+        
+        return maxChain;
     }
 
     applyDefaultStyling() {
