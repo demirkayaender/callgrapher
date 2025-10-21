@@ -1,4 +1,8 @@
 // Graph visualization configuration
+// Layout: Left-to-Right (LR)
+//   - Caller functions appear on the LEFT
+//   - Callee functions appear on the RIGHT
+//   - Edge direction: from (caller) -> to (callee)
 export class GraphConfig {
     static getOptions() {
         return {
@@ -21,11 +25,15 @@ export class GraphConfig {
             layout: {
                 hierarchical: {
                     enabled: true,
-                    direction: 'LR',
-                    sortMethod: 'directed',
-                    levelSeparation: 90,
-                    nodeSpacing: 85,
-                    treeSpacing: 130
+                    direction: 'LR',              // Left to Right: caller -> callee
+                    sortMethod: 'directed',        // Use edge direction for ordering
+                    shakeTowards: 'leaves',        // Shake towards leaf nodes (callees)
+                    levelSeparation: 90,          // Horizontal distance between levels
+                    nodeSpacing: 85,              // Vertical spacing between nodes
+                    treeSpacing: 130,             // Spacing between disconnected trees
+                    blockShifting: true,          // Reduce whitespace
+                    edgeMinimization: true,       // Minimize edge crossings
+                    parentCentralization: true    // Center parent nodes over children
                 }
             },
             interaction: {
