@@ -743,7 +743,7 @@ export class CallGraphViewer {
                 },
                 stabilization: {
                     enabled: true,
-                    iterations: 300
+                    iterations: 100  // Reduced for faster initial render
                 }
             }
         };
@@ -999,7 +999,7 @@ export class CallGraphViewer {
                 },
                 stabilization: {
                     enabled: true,
-                    iterations: 300
+                    iterations: 50  // Reduced for faster reorganization
                 }
             }
         });
@@ -1028,8 +1028,8 @@ export class CallGraphViewer {
                             easingFunction: 'easeInOutQuad'
                         }
                     });
-                }, 100);
-            }, 100);
+                }, 10);
+            }, 10);
         };
         
         let stabilizationHandled = false;
@@ -1046,7 +1046,7 @@ export class CallGraphViewer {
                 stabilizationHandled = true;
                 finishReorganization();
             }
-        }, 1500);
+        }, 300);  // Reduced fallback timeout for faster response
     }
 
     updateGraphVisibility() {
