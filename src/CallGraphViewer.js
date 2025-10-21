@@ -118,7 +118,8 @@ export class CallGraphViewer {
             // 2. Calculate statistics on raw data
             // 3. Filter nodes BEFORE creating UI DataSets (performance!)
             // 4. Create UI DataSets with filtered data only
-            // 5. Apply styling and render
+            // 5. Apply styling to filtered nodes
+            // 6. Render graph (which applies package clustering to filtered nodes)
             
             const parsedData = vis.parseDOTNetwork(dotContent);
             
@@ -550,9 +551,15 @@ export class CallGraphViewer {
     }
 
     // Calculate package positions and cluster nodes by package
+    // NOTE: This works on this.nodes (filtered DataSet), not this.originalData
     calculatePackageLevels() {
-        const allNodes = this.nodes.get();
-        const allEdges = this.edges.get();
+        const allNodes = this.nodes.get();  // FILTERED nodes only
+        const allEdges = this.edges.get();  // FILTERED edges only
+        
+        Logger.debug('CallGraphViewer', 'Starting package clustering on filtered nodes', {
+            nodeCount: allNodes.length,
+            edgeCount: allEdges.length
+        });
         
         // Build package dependency graph and group nodes
         const packageDeps = new Map(); // package -> Set of packages being called
