@@ -979,10 +979,24 @@ export class CallGraphViewer {
             if (this.hiddenNodes.has(node.id)) return;
             
             const originalPos = this.layoutManager.originalPositions.get(node.id);
+            const nodeDefaults = GraphConfig.getNodeDefaults();
+            
+            // Apply folder-based border color
+            const filePath = node.file || node.path || node.filepath || node.location;
+            const folderName = this.getFolderFromPath(filePath);
+            let borderColor = nodeDefaults.color.border;
+            
+            if (folderName) {
+                borderColor = this.getFolderColor(folderName);
+            }
             
             this.nodes.add({
                 ...node,
-                ...GraphConfig.getNodeDefaults(),
+                ...nodeDefaults,
+                color: {
+                    ...nodeDefaults.color,
+                    border: borderColor
+                },
                 x: originalPos?.x,
                 y: originalPos?.y,
                 fixed: { x: false, y: false },
