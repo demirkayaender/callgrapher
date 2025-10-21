@@ -626,22 +626,29 @@ export class CallGraphViewer {
         packageOrder.reverse();
         
         // Assign X positions to packages (clusters)
-        const packageSpacing = 400; // Space between package clusters
-        const nodeSpacing = 120; // Space between nodes within a package
+        const packageSpacing = 500; // Space between package cluster centers
+        const clusterWidth = 300; // Width of each package cluster (allows horizontal spreading)
+        const nodeSpacing = 120; // Initial vertical spacing between nodes
         
         packageOrder.forEach((pkg, pkgIndex) => {
-            const baseX = pkgIndex * packageSpacing;
+            const centerX = pkgIndex * packageSpacing;
+            const minX = centerX - clusterWidth / 2;
+            const maxX = centerX + clusterWidth / 2;
             const nodes = packageNodes.get(pkg);
             
-            // Layout nodes within the package vertically
+            // Distribute nodes within the package with some horizontal variation
             nodes.forEach((node, nodeIndex) => {
+                // Add some horizontal jitter within the cluster width
+                const xOffset = (Math.random() - 0.5) * clusterWidth * 0.8;
+                const x = centerX + xOffset;
                 const y = nodeIndex * nodeSpacing;
                 
                 this.nodes.update({
                     id: node.id,
-                    x: baseX,
+                    x: x,
                     y: y,
-                    fixed: { x: true, y: false } // Fix X position, allow Y movement within cluster
+                    fixed: false, // Allow free movement - physics will arrange based on connections
+                    level: pkgIndex // Use level to maintain package ordering
                 });
             });
         });
@@ -656,28 +663,28 @@ export class CallGraphViewer {
         const container = document.getElementById('graph-canvas');
         const data = { nodes: this.nodes, edges: this.edges };
         
-        // Use custom options without hierarchical layout (we position manually)
+        // Use custom options with hierarchical repulsion to maintain package ordering
         const options = {
             ...GraphConfig.getOptions(),
             layout: {
                 hierarchical: {
-                    enabled: false
+                    enabled: false // We set initial positions and levels manually
                 }
             },
             physics: {
                 enabled: true,
-                solver: 'barnesHut',
-                barnesHut: {
-                    gravitationalConstant: -2000,
-                    centralGravity: 0.1,
-                    springLength: 100,
-                    springConstant: 0.04,
+                solver: 'hierarchicalRepulsion', // Use hierarchical repulsion to respect levels
+                hierarchicalRepulsion: {
+                    centralGravity: 0.0,
+                    springLength: 150,
+                    springConstant: 0.02,
+                    nodeDistance: 150,
                     damping: 0.09,
-                    avoidOverlap: 0.5
+                    avoidOverlap: 0.8
                 },
                 stabilization: {
                     enabled: true,
-                    iterations: 200
+                    iterations: 300
                 }
             }
         };
@@ -876,42 +883,47 @@ export class CallGraphViewer {
         
         packageOrder.reverse();
         
-        // Position nodes in package clusters
-        const packageSpacing = 400;
+        // Position nodes in package clusters with horizontal spreading
+        const packageSpacing = 500;
+        const clusterWidth = 300;
         const nodeSpacing = 120;
         
         packageOrder.forEach((pkg, pkgIndex) => {
-            const baseX = pkgIndex * packageSpacing;
+            const centerX = pkgIndex * packageSpacing;
             const nodes = packageNodes.get(pkg);
             
             nodes.forEach((node, nodeIndex) => {
+                // Add some horizontal jitter within the cluster width
+                const xOffset = (Math.random() - 0.5) * clusterWidth * 0.8;
+                const x = centerX + xOffset;
                 const y = nodeIndex * nodeSpacing;
                 
                 this.nodes.update({
                     id: node.id,
-                    x: baseX,
+                    x: x,
                     y: y,
-                    fixed: { x: true, y: false }
+                    fixed: false,
+                    level: pkgIndex
                 });
             });
         });
         
-        // Apply physics for vertical positioning within clusters
+        // Apply physics for positioning within clusters (respects level for package ordering)
         this.network.setOptions({
             physics: {
                 enabled: true,
-                solver: 'barnesHut',
-                barnesHut: {
-                    gravitationalConstant: -2000,
-                    centralGravity: 0.1,
-                    springLength: 100,
-                    springConstant: 0.04,
+                solver: 'hierarchicalRepulsion',
+                hierarchicalRepulsion: {
+                    centralGravity: 0.0,
+                    springLength: 150,
+                    springConstant: 0.02,
+                    nodeDistance: 150,
                     damping: 0.09,
-                    avoidOverlap: 0.5
+                    avoidOverlap: 0.8
                 },
                 stabilization: {
                     enabled: true,
-                    iterations: 200
+                    iterations: 300
                 }
             }
         });
