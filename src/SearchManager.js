@@ -30,6 +30,13 @@ export class SearchManager {
         }
         
         this.renderSuggestions();
+        
+        // Disable vis-network keyboard handling while suggestions are shown
+        if (this.viewer.network) {
+            this.viewer.network.setOptions({
+                interaction: { keyboard: { enabled: false } }
+            });
+        }
     }
     
     findSuggestions(query) {
@@ -154,6 +161,13 @@ export class SearchManager {
         }
         this.suggestions = [];
         this.selectedSuggestionIndex = -1;
+        
+        // Re-enable vis-network keyboard handling when suggestions are hidden
+        if (this.viewer.network) {
+            this.viewer.network.setOptions({
+                interaction: { keyboard: { enabled: true } }
+            });
+        }
     }
     
     navigateSuggestions(direction) {

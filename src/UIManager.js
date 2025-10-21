@@ -68,24 +68,30 @@ export class UIManager {
         searchInput.addEventListener('keydown', (e) => {
             const query = e.target.value;
             
-            // Up/Down arrow navigation
-            if (e.key === 'ArrowDown') {
+            // Check if suggestions are visible
+            const suggestionsVisible = !this.viewer.searchManager.suggestionsContainer.classList.contains('hidden');
+            
+            // Up/Down arrow navigation (only when suggestions are visible)
+            if (e.key === 'ArrowDown' && suggestionsVisible) {
                 e.preventDefault();
+                e.stopPropagation(); // Prevent other handlers from receiving this event
                 this.viewer.searchManager.navigateSuggestions('down');
                 return;
             }
             
-            if (e.key === 'ArrowUp') {
+            if (e.key === 'ArrowUp' && suggestionsVisible) {
                 e.preventDefault();
+                e.stopPropagation(); // Prevent other handlers from receiving this event
                 this.viewer.searchManager.navigateSuggestions('up');
                 return;
             }
             
-            // Right arrow for autocomplete
-            if (e.key === 'ArrowRight') {
+            // Right arrow for autocomplete (only when suggestions are visible)
+            if (e.key === 'ArrowRight' && suggestionsVisible) {
                 const autocomplete = this.viewer.searchManager.autocompleteFromSuggestion();
                 if (autocomplete) {
                     e.preventDefault();
+                    e.stopPropagation();
                     searchInput.value = autocomplete;
                     searchInput.focus();
                     // Move cursor to end
@@ -99,6 +105,7 @@ export class UIManager {
             // Enter key
             if (e.key === 'Enter') {
                 e.preventDefault();
+                e.stopPropagation(); // Prevent other handlers from receiving this event
                 
                 // If empty, reset layout
                 if (!query || query.trim() === '') {
