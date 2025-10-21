@@ -550,6 +550,88 @@ export class CallGraphViewer {
         }
     }
 
+    // Spread nodes vertically to prevent arrow overlaps
+    // Nodes that share incoming callers are spread apart
+    spreadNodesVertically(nodes, edges) {
+        const nodePositions = new Map();
+        
+        // Get current positions
+        nodes.forEach(node => {
+            const pos = this.network.getPositions([node.id])[node.id];
+            if (pos) {
+                nodePositions.set(node.id, { x: pos.x, y: pos.y });
+            }
+        });
+        
+        // Group nodes by their incoming callers
+        const callerGroups = new Map(); // caller -> array of target nodes at similar X positions
+        
+        edges.forEach(edge => {
+            const fromPos = nodePositions.get(edge.from);
+            const toPos = nodePositions.get(edge.to);
+            
+            if (fromPos && toPos) {
+                // Group by caller
+                if (!callerGroups.has(edge.from)) {
+                    callerGroups.set(edge.from, []);
+                }
+                callerGroups.get(edge.from).push({
+                    nodeId: edge.to,
+                    x: toPos.x,
+                    y: toPos.y
+                });
+            }
+        });
+        
+        // For each caller, spread its targets vertically if they're at similar Y positions
+        const adjustments = new Map();
+        
+        callerGroups.forEach((targets, caller) => {
+            if (targets.length <= 1) return; // No overlap possible
+            
+            // Sort targets by Y position
+            targets.sort((a, b) => a.y - b.y);
+            
+            // Find clusters of nodes that are too close vertically (within 30 pixels)
+            const minVerticalSpacing = 30;
+            
+            for (let i = 0; i < targets.length - 1; i++) {
+                const current = targets[i];
+                const next = targets[i + 1];
+                
+                const verticalDist = Math.abs(next.y - current.y);
+                
+                if (verticalDist < minVerticalSpacing) {
+                    // These nodes are too close, spread them apart
+                    const adjustment = (minVerticalSpacing - verticalDist) / 2;
+                    
+                    // Adjust the current node up
+                    if (!adjustments.has(current.nodeId)) {
+                        adjustments.set(current.nodeId, 0);
+                    }
+                    adjustments.set(current.nodeId, adjustments.get(current.nodeId) - adjustment);
+                    
+                    // Adjust the next node down
+                    if (!adjustments.has(next.nodeId)) {
+                        adjustments.set(next.nodeId, 0);
+                    }
+                    adjustments.set(next.nodeId, adjustments.get(next.nodeId) + adjustment);
+                }
+            }
+        });
+        
+        // Apply adjustments
+        adjustments.forEach((yAdjustment, nodeId) => {
+            const pos = nodePositions.get(nodeId);
+            if (pos) {
+                this.nodes.update({
+                    id: nodeId,
+                    y: pos.y + yAdjustment
+                });
+            }
+        });
+    }
+
     // Calculate node depths within a package based on call graph
     // Depth 0 = root nodes (no incoming calls within package)
     // Depth increases as we go deeper into the call chain
@@ -704,8 +786,11 @@ export class CallGraphViewer {
             // Position nodes based on their depth within the package
             nodes.forEach((node) => {
                 const depth = nodeDepths.get(node.id) || 0;
-                const x = packageLeft + (depth * nodeHorizontalSpacing);
-                const y = nodes.indexOf(node) * nodeSpacing;
+                // Add small random jitter (main overlap prevention is handled by spreadNodesVertically)
+                const jitterX = (Math.random() - 0.5) * 8; // ±4 pixels horizontal jitter
+                const jitterY = (Math.random() - 0.5) * 16; // ±8 pixels vertical jitter
+                const x = packageLeft + (depth * nodeHorizontalSpacing) + jitterX;
+                const y = nodes.indexOf(node) * nodeSpacing + jitterY;
                 
                 this.nodes.update({
                     id: node.id,
@@ -760,6 +845,12 @@ export class CallGraphViewer {
         this.network.once('stabilizationIterationsDone', () => {
             // Re-apply package positions after physics stabilization
             this.calculatePackageLevels();
+            
+            // Spread nodes vertically to prevent arrow overlaps
+            const allNodes = this.nodes.get();
+            const allEdges = this.edges.get();
+            this.spreadNodesVertically(allNodes, allEdges);
+            
             this.layoutManager.storeOriginalPositions();
         });
 
@@ -971,8 +1062,11 @@ export class CallGraphViewer {
             // Position nodes based on their depth within the package
             nodes.forEach((node) => {
                 const depth = nodeDepths.get(node.id) || 0;
-                const x = packageLeft + (depth * nodeHorizontalSpacing);
-                const y = nodes.indexOf(node) * nodeSpacing;
+                // Add random jitter to prevent perfect alignment and arrow overlap
+                const jitterX = (Math.random() - 0.5) * 10; // ±5 pixels horizontal jitter
+                const jitterY = (Math.random() - 0.5) * 40; // ±20 pixels vertical jitter (more to separate horizontal arrows)
+                const x = packageLeft + (depth * nodeHorizontalSpacing) + jitterX;
+                const y = nodes.indexOf(node) * nodeSpacing + jitterY;
                 
                 this.nodes.update({
                     id: node.id,
@@ -1008,8 +1102,12 @@ export class CallGraphViewer {
             this.network.setOptions({ physics: { enabled: false } });
             
             setTimeout(() => {
-                // Store final positions
+                // Spread nodes vertically to prevent arrow overlaps
                 const allNodes = this.nodes.get();
+                const allEdges = this.edges.get();
+                this.spreadNodesVertically(allNodes, allEdges);
+                
+                // Store final positions
                 allNodes.forEach((node) => {
                     const position = this.network.getPositions([node.id])[node.id];
                     if (position) {

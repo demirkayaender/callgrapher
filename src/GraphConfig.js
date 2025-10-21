@@ -54,8 +54,7 @@ export class GraphConfig {
             edges: {
                 smooth: {
                     enabled: true,
-                    type: 'cubicBezier',
-                    roundness: 0.2
+                    type: 'straightCross'  // Straight lines with minimal curve at crossing
                 },
                 physics: false
             }
@@ -109,7 +108,10 @@ export class GraphConfig {
             arrows: { to: { enabled: true, scaleFactor: 0.8 } },
             color: { color: '#94a3b8', highlight: '#4f46e5' },
             width: 2,
-            smooth: { type: 'cubicBezier', roundness: 0.2 }
+            smooth: { 
+                enabled: true,
+                type: 'straightCross'  // Straight lines with minimal curve at crossing
+            }
         };
     }
 
