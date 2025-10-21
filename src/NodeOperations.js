@@ -261,15 +261,15 @@ export class NodeOperations {
     applyNormalAppearance(nodeId, collapseState) {
         const colors = GraphConfig.getNodeColors(collapseState);
         
-        // Apply folder-based border color if not collapsed
+        // Apply package-based border color if not collapsed
         let borderColor = colors.border;
         if (!collapseState || (!collapseState.outgoing && !collapseState.incoming)) {
             const node = this.viewer.nodes.get(nodeId);
             if (node) {
                 const filePath = node.file || node.path || node.filepath || node.location;
-                const folderName = this.viewer.getFolderFromPath(filePath);
-                if (folderName) {
-                    borderColor = this.viewer.getFolderColor(folderName);
+                const packageName = this.viewer.getFolderFromPath(filePath);
+                if (packageName) {
+                    borderColor = this.viewer.getFolderColor(packageName);
                 }
             }
         }
@@ -298,15 +298,15 @@ export class NodeOperations {
         const flashColors = GraphConfig.getFlashColors();
         const normalColors = GraphConfig.getNodeColors(collapseState);
         
-        // Apply folder-based border color if not collapsed
+        // Apply package-based border color if not collapsed
         let targetBorderColor = normalColors.border;
         if (!collapseState || (!collapseState.outgoing && !collapseState.incoming)) {
             const node = this.viewer.nodes.get(nodeId);
             if (node) {
                 const filePath = node.file || node.path || node.filepath || node.location;
-                const folderName = this.viewer.getFolderFromPath(filePath);
-                if (folderName) {
-                    targetBorderColor = this.viewer.getFolderColor(folderName);
+                const packageName = this.viewer.getFolderFromPath(filePath);
+                if (packageName) {
+                    targetBorderColor = this.viewer.getFolderColor(packageName);
                 }
             }
         }

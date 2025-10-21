@@ -1,8 +1,10 @@
 // Graph visualization configuration
-// Layout: Left-to-Right (LR)
-//   - Caller functions appear on the LEFT
-//   - Callee functions appear on the RIGHT
+// Layout: Package Clustering (Left-to-Right)
+//   - All nodes from the same package are clustered together in a vertical group
+//   - Packages are positioned left-to-right based on dependencies
+//   - If package A calls package B, ALL nodes of B are to the RIGHT of ALL nodes of A
 //   - Edge direction: from (caller) -> to (callee)
+//   - Within each package cluster, nodes can move vertically but X position is fixed
 export class GraphConfig {
     static getOptions() {
         return {

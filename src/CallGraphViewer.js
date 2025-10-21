@@ -475,21 +475,21 @@ export class CallGraphViewer {
         });
     }
 
-    // Extract the deepest folder name from a file path
+    // Extract the package name (deepest folder) from a file path
     getFolderFromPath(filePath) {
         if (!filePath) return null;
         
         // Split by / or \
         const parts = filePath.split(/[/\\]/);
         
-        // Get the folder part (everything except the last part which is the filename)
+        // Get the package name (everything except the last part which is the filename)
         if (parts.length <= 1) return null;
         
-        // Return the deepest folder (second to last part)
+        // Return the package name (second to last part)
         return parts[parts.length - 2];
     }
 
-    // Generate a consistent color from a folder name
+    // Generate a consistent color from a package name
     getFolderColor(folderName) {
         if (!folderName) return '#4a90e2'; // Default blue
         
@@ -512,25 +512,25 @@ export class CallGraphViewer {
         const nodeDefaults = GraphConfig.getNodeDefaults();
         const edgeDefaults = GraphConfig.getEdgeDefaults();
         
-        const folderColorMap = new Map();
+        const packageColorMap = new Map();
         
         this.nodes.forEach((node) => {
             const styling = { ...nodeDefaults };
             
-            // Apply folder-based border color
+            // Apply package-based border color
             const filePath = node.file || node.path || node.filepath || node.location;
-            const folderName = this.getFolderFromPath(filePath);
+            const packageName = this.getFolderFromPath(filePath);
             
-            if (folderName) {
-                const color = this.getFolderColor(folderName);
+            if (packageName) {
+                const color = this.getFolderColor(packageName);
                 styling.color = {
                     ...nodeDefaults.color,
                     border: color
                 };
                 
-                // Track unique folders for logging
-                if (!folderColorMap.has(folderName)) {
-                    folderColorMap.set(folderName, color);
+                // Track unique packages for logging
+                if (!packageColorMap.has(packageName)) {
+                    packageColorMap.set(packageName, color);
                 }
             }
             
@@ -541,26 +541,152 @@ export class CallGraphViewer {
             this.edges.update({ id: edge.id, ...edgeDefaults });
         });
         
-        if (folderColorMap.size > 0) {
-            Logger.info('CallGraphViewer', 'Applied folder-based colors', { 
-                folderCount: folderColorMap.size,
-                folders: Array.from(folderColorMap.keys())
+        if (packageColorMap.size > 0) {
+            Logger.info('CallGraphViewer', 'Applied package-based colors', { 
+                packageCount: packageColorMap.size,
+                packages: Array.from(packageColorMap.keys())
             });
         }
+    }
+
+    // Calculate package positions and cluster nodes by package
+    calculatePackageLevels() {
+        const allNodes = this.nodes.get();
+        const allEdges = this.edges.get();
+        
+        // Build package dependency graph and group nodes
+        const packageDeps = new Map(); // package -> Set of packages being called
+        const packageNodes = new Map(); // package -> array of nodes
+        
+        // Group nodes by package
+        allNodes.forEach(node => {
+            const filePath = node.file || node.path || node.filepath || node.location;
+            const packageName = this.getFolderFromPath(filePath) || 'unknown';
+            
+            if (!packageNodes.has(packageName)) {
+                packageNodes.set(packageName, []);
+                packageDeps.set(packageName, new Set());
+            }
+            packageNodes.get(packageName).push(node);
+        });
+        
+        // Build package dependencies: A calls B means A depends on B, B should be RIGHT of A
+        allEdges.forEach(edge => {
+            const fromNode = allNodes.find(n => n.id === edge.from);
+            const toNode = allNodes.find(n => n.id === edge.to);
+            
+            if (fromNode && toNode) {
+                const fromPackage = this.getFolderFromPath(fromNode.file || fromNode.path || fromNode.filepath || fromNode.location) || 'unknown';
+                const toPackage = this.getFolderFromPath(toNode.file || toNode.path || toNode.filepath || toNode.location) || 'unknown';
+                
+                // If different packages, fromPackage calls toPackage
+                if (fromPackage !== toPackage) {
+                    packageDeps.get(fromPackage).add(toPackage);
+                }
+            }
+        });
+        
+        // Topological sort to determine package order (left to right)
+        const packageOrder = [];
+        const visited = new Set();
+        const visiting = new Set();
+        
+        const visit = (pkg) => {
+            if (visited.has(pkg)) return;
+            if (visiting.has(pkg)) return; // Cycle detected, skip
+            
+            visiting.add(pkg);
+            
+            // Visit dependencies first (packages being called should be visited first, placed right)
+            const deps = packageDeps.get(pkg) || new Set();
+            deps.forEach(depPkg => {
+                if (packageNodes.has(depPkg)) {
+                    visit(depPkg);
+                }
+            });
+            
+            visiting.delete(pkg);
+            visited.add(pkg);
+            packageOrder.push(pkg); // This package goes LEFT of its dependencies
+        };
+        
+        // Visit all packages
+        packageNodes.forEach((nodes, pkg) => {
+            visit(pkg);
+        });
+        
+        // Reverse to get left-to-right order
+        packageOrder.reverse();
+        
+        // Assign X positions to packages (clusters)
+        const packageSpacing = 400; // Space between package clusters
+        const nodeSpacing = 120; // Space between nodes within a package
+        
+        packageOrder.forEach((pkg, pkgIndex) => {
+            const baseX = pkgIndex * packageSpacing;
+            const nodes = packageNodes.get(pkg);
+            
+            // Layout nodes within the package vertically
+            nodes.forEach((node, nodeIndex) => {
+                const y = nodeIndex * nodeSpacing;
+                
+                this.nodes.update({
+                    id: node.id,
+                    x: baseX,
+                    y: y,
+                    fixed: { x: true, y: false } // Fix X position, allow Y movement within cluster
+                });
+            });
+        });
+        
+        Logger.info('CallGraphViewer', 'Package clusters positioned', { 
+            packageCount: packageOrder.length,
+            packageOrder: packageOrder
+        });
     }
 
     renderGraph() {
         const container = document.getElementById('graph-canvas');
         const data = { nodes: this.nodes, edges: this.edges };
-        const options = GraphConfig.getOptions();
+        
+        // Use custom options without hierarchical layout (we position manually)
+        const options = {
+            ...GraphConfig.getOptions(),
+            layout: {
+                hierarchical: {
+                    enabled: false
+                }
+            },
+            physics: {
+                enabled: true,
+                solver: 'barnesHut',
+                barnesHut: {
+                    gravitationalConstant: -2000,
+                    centralGravity: 0.1,
+                    springLength: 100,
+                    springConstant: 0.04,
+                    damping: 0.09,
+                    avoidOverlap: 0.5
+                },
+                stabilization: {
+                    enabled: true,
+                    iterations: 200
+                }
+            }
+        };
 
         if (this.network) {
             this.network.destroy();
         }
         
         this.network = new vis.Network(container, data, options);
+        
+        // Calculate package-based clustering and positions after network creation
+        this.calculatePackageLevels();
 
         this.network.once('stabilizationIterationsDone', () => {
+            // Re-apply package positions after physics stabilization
+            this.calculatePackageLevels();
             this.layoutManager.storeOriginalPositions();
         });
 
@@ -857,13 +983,13 @@ export class CallGraphViewer {
         
         const pos = position || this.layoutManager.originalPositions.get(node.id) || {};
         
-        // Apply folder-based border color if not collapsed
+        // Apply package-based border color if not collapsed
         let borderColor = colors.border;
         if (!collapseState || (!collapseState.outgoing && !collapseState.incoming)) {
             const filePath = node.file || node.path || node.filepath || node.location;
-            const folderName = this.getFolderFromPath(filePath);
-            if (folderName) {
-                borderColor = this.getFolderColor(folderName);
+            const packageName = this.getFolderFromPath(filePath);
+            if (packageName) {
+                borderColor = this.getFolderColor(packageName);
             }
         }
         
@@ -895,12 +1021,12 @@ export class CallGraphViewer {
     addIsolatedNode(node, position) {
         const colors = GraphConfig.getIsolatedNodeColors();
         
-        // Apply folder-based border color for isolated nodes
+        // Apply package-based border color for isolated nodes
         let borderColor = colors.border;
         const filePath = node.file || node.path || node.filepath || node.location;
-        const folderName = this.getFolderFromPath(filePath);
-        if (folderName) {
-            borderColor = this.getFolderColor(folderName);
+        const packageName = this.getFolderFromPath(filePath);
+        if (packageName) {
+            borderColor = this.getFolderColor(packageName);
         }
         
         this.nodes.add({
@@ -981,13 +1107,13 @@ export class CallGraphViewer {
             const originalPos = this.layoutManager.originalPositions.get(node.id);
             const nodeDefaults = GraphConfig.getNodeDefaults();
             
-            // Apply folder-based border color
+            // Apply package-based border color
             const filePath = node.file || node.path || node.filepath || node.location;
-            const folderName = this.getFolderFromPath(filePath);
+            const packageName = this.getFolderFromPath(filePath);
             let borderColor = nodeDefaults.color.border;
             
-            if (folderName) {
-                borderColor = this.getFolderColor(folderName);
+            if (packageName) {
+                borderColor = this.getFolderColor(packageName);
             }
             
             this.nodes.add({

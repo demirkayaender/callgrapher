@@ -415,16 +415,16 @@ export class UIManager {
                 </div>
             `;
             
-            // Extract and display folder name
-            const folderName = this.viewer.getFolderFromPath(filePath);
-            if (folderName) {
-                const folderColor = this.viewer.getFolderColor(folderName);
+            // Extract and display package name
+            const packageName = this.viewer.getFolderFromPath(filePath);
+            if (packageName) {
+                const packageColor = this.viewer.getFolderColor(packageName);
                 html += `
                     <div class="property">
-                        <span class="property-label">Folder:</span>
+                        <span class="property-label">Package:</span>
                         <div class="property-value">
-                            <span style="display: inline-block; width: 12px; height: 12px; background-color: ${folderColor}; border-radius: 2px; margin-right: 6px; vertical-align: middle;"></span>
-                            ${folderName}
+                            <span style="display: inline-block; width: 12px; height: 12px; background-color: ${packageColor}; border-radius: 2px; margin-right: 6px; vertical-align: middle;"></span>
+                            ${packageName}
                         </div>
                     </div>
                 `;
