@@ -550,6 +550,61 @@ export class CallGraphViewer {
         }
     }
 
+    // Calculate node depths within a package based on call graph
+    // Depth 0 = root nodes (no incoming calls within package)
+    // Depth increases as we go deeper into the call chain
+    calculateNodeDepthsInPackage(nodes, edges) {
+        const nodeIds = new Set(nodes.map(n => n.id));
+        const depths = new Map();
+        
+        // Filter edges to only those within this package
+        const internalEdges = edges.filter(e => nodeIds.has(e.from) && nodeIds.has(e.to));
+        
+        // Build adjacency list for BFS
+        const incomingCount = new Map();
+        const outgoing = new Map();
+        
+        nodes.forEach(node => {
+            incomingCount.set(node.id, 0);
+            outgoing.set(node.id, []);
+        });
+        
+        internalEdges.forEach(edge => {
+            incomingCount.set(edge.to, (incomingCount.get(edge.to) || 0) + 1);
+            outgoing.get(edge.from).push(edge.to);
+        });
+        
+        // BFS from root nodes (nodes with no incoming edges)
+        const queue = [];
+        nodes.forEach(node => {
+            if (incomingCount.get(node.id) === 0) {
+                queue.push({ id: node.id, depth: 0 });
+                depths.set(node.id, 0);
+            }
+        });
+        
+        // Process queue
+        while (queue.length > 0) {
+            const { id, depth } = queue.shift();
+            
+            outgoing.get(id).forEach(targetId => {
+                if (!depths.has(targetId) || depths.get(targetId) < depth + 1) {
+                    depths.set(targetId, depth + 1);
+                    queue.push({ id: targetId, depth: depth + 1 });
+                }
+            });
+        }
+        
+        // Set depth for any unvisited nodes (cycles or disconnected)
+        nodes.forEach(node => {
+            if (!depths.has(node.id)) {
+                depths.set(node.id, 0);
+            }
+        });
+        
+        return depths;
+    }
+
     // Calculate package positions and cluster nodes by package
     // NOTE: This works on this.nodes (filtered DataSet), not this.originalData
     calculatePackageLevels() {
@@ -625,23 +680,32 @@ export class CallGraphViewer {
         // Reverse to get left-to-right order
         packageOrder.reverse();
         
+        // Log package ordering for debugging
+        Logger.info('CallGraphViewer', 'Initial package order (left to right)', { 
+            packageOrder: packageOrder,
+            dependencies: Array.from(packageDeps.entries()).map(([pkg, deps]) => ({
+                package: pkg,
+                callsPackages: Array.from(deps)
+            }))
+        });
+        
         // Assign X positions to packages (clusters)
         const packageSpacing = 500; // Space between package cluster centers
-        const clusterWidth = 300; // Width of each package cluster (allows horizontal spreading)
         const nodeSpacing = 120; // Initial vertical spacing between nodes
+        const nodeHorizontalSpacing = 80; // Horizontal spacing within package based on depth
         
         packageOrder.forEach((pkg, pkgIndex) => {
-            const centerX = pkgIndex * packageSpacing;
-            const minX = centerX - clusterWidth / 2;
-            const maxX = centerX + clusterWidth / 2;
+            const packageLeft = pkgIndex * packageSpacing;
             const nodes = packageNodes.get(pkg);
             
-            // Distribute nodes within the package with some horizontal variation
-            nodes.forEach((node, nodeIndex) => {
-                // Add some horizontal jitter within the cluster width
-                const xOffset = (Math.random() - 0.5) * clusterWidth * 0.8;
-                const x = centerX + xOffset;
-                const y = nodeIndex * nodeSpacing;
+            // Calculate node depths within this package (left to right based on call graph)
+            const nodeDepths = this.calculateNodeDepthsInPackage(nodes, allEdges);
+            
+            // Position nodes based on their depth within the package
+            nodes.forEach((node) => {
+                const depth = nodeDepths.get(node.id) || 0;
+                const x = packageLeft + (depth * nodeHorizontalSpacing);
+                const y = nodes.indexOf(node) * nodeSpacing;
                 
                 this.nodes.update({
                     id: node.id,
@@ -651,11 +715,6 @@ export class CallGraphViewer {
                     level: pkgIndex // Use level to maintain package ordering
                 });
             });
-        });
-        
-        Logger.info('CallGraphViewer', 'Package clusters positioned', { 
-            packageCount: packageOrder.length,
-            packageOrder: packageOrder
         });
     }
 
@@ -821,7 +880,7 @@ export class CallGraphViewer {
     reorganizeLayout(nodeId) {
         // Apply package clustering to visible nodes (same as initial render)
         const visibleNodes = this.nodes.get();
-        const visibleEdges = this.edges.get();
+        const visibleNodeIds = new Set(visibleNodes.map(n => n.id));
         
         // Build package dependency graph for visible nodes
         const packageDeps = new Map();
@@ -839,17 +898,22 @@ export class CallGraphViewer {
             packageNodes.get(packageName).push(node);
         });
         
-        // Build package dependencies from visible edges
-        visibleEdges.forEach(edge => {
-            const fromNode = visibleNodes.find(n => n.id === edge.from);
-            const toNode = visibleNodes.find(n => n.id === edge.to);
-            
-            if (fromNode && toNode) {
-                const fromPackage = this.getFolderFromPath(fromNode.file || fromNode.path || fromNode.filepath || fromNode.location) || 'unknown';
-                const toPackage = this.getFolderFromPath(toNode.file || toNode.path || toNode.filepath || toNode.location) || 'unknown';
+        // Build package dependencies from ORIGINAL edges (not just visible)
+        // This ensures consistent package ordering based on the full graph structure
+        const allOriginalEdges = this.originalData.edges.get();
+        allOriginalEdges.forEach(edge => {
+            // Only consider edges where both nodes are visible
+            if (visibleNodeIds.has(edge.from) && visibleNodeIds.has(edge.to)) {
+                const fromNode = visibleNodes.find(n => n.id === edge.from);
+                const toNode = visibleNodes.find(n => n.id === edge.to);
                 
-                if (fromPackage !== toPackage) {
-                    packageDeps.get(fromPackage).add(toPackage);
+                if (fromNode && toNode) {
+                    const fromPackage = this.getFolderFromPath(fromNode.file || fromNode.path || fromNode.filepath || fromNode.location) || 'unknown';
+                    const toPackage = this.getFolderFromPath(toNode.file || toNode.path || toNode.filepath || toNode.location) || 'unknown';
+                    
+                    if (fromPackage !== toPackage) {
+                        packageDeps.get(fromPackage).add(toPackage);
+                    }
                 }
             }
         });
@@ -883,20 +947,32 @@ export class CallGraphViewer {
         
         packageOrder.reverse();
         
-        // Position nodes in package clusters with horizontal spreading
+        // Log package ordering for debugging
+        Logger.info('CallGraphViewer', 'Reorganize package order (left to right)', { 
+            packageOrder: packageOrder,
+            dependencies: Array.from(packageDeps.entries()).map(([pkg, deps]) => ({
+                package: pkg,
+                callsPackages: Array.from(deps)
+            }))
+        });
+        
+        // Position nodes in package clusters based on call depth
         const packageSpacing = 500;
-        const clusterWidth = 300;
         const nodeSpacing = 120;
+        const nodeHorizontalSpacing = 80;
         
         packageOrder.forEach((pkg, pkgIndex) => {
-            const centerX = pkgIndex * packageSpacing;
+            const packageLeft = pkgIndex * packageSpacing;
             const nodes = packageNodes.get(pkg);
             
-            nodes.forEach((node, nodeIndex) => {
-                // Add some horizontal jitter within the cluster width
-                const xOffset = (Math.random() - 0.5) * clusterWidth * 0.8;
-                const x = centerX + xOffset;
-                const y = nodeIndex * nodeSpacing;
+            // Calculate node depths within this package (left to right based on call graph)
+            const nodeDepths = this.calculateNodeDepthsInPackage(nodes, allOriginalEdges);
+            
+            // Position nodes based on their depth within the package
+            nodes.forEach((node) => {
+                const depth = nodeDepths.get(node.id) || 0;
+                const x = packageLeft + (depth * nodeHorizontalSpacing);
+                const y = nodes.indexOf(node) * nodeSpacing;
                 
                 this.nodes.update({
                     id: node.id,
@@ -971,11 +1047,6 @@ export class CallGraphViewer {
                 finishReorganization();
             }
         }, 1500);
-        
-        Logger.info('CallGraphViewer', 'Reorganized with package clustering', { 
-            packageCount: packageOrder.length,
-            packageOrder: packageOrder
-        });
     }
 
     updateGraphVisibility() {
