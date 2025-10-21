@@ -805,37 +805,109 @@ export class CallGraphViewer {
     }
 
     reorganizeLayout(nodeId) {
-        // Step 1: Order nodes left-to-right based on levels
-        const visibleNodeIds = this.nodes.get().map(n => n.id);
+        // Apply package clustering to visible nodes (same as initial render)
+        const visibleNodes = this.nodes.get();
         const visibleEdges = this.edges.get();
-        const nodeLevels = this.layoutManager.calculateNodeLevels(visibleNodeIds, visibleEdges);
         
-        // Group by level
-        const levelGroups = new Map();
-        nodeLevels.forEach((level, id) => {
-            if (!levelGroups.has(level)) {
-                levelGroups.set(level, []);
+        // Build package dependency graph for visible nodes
+        const packageDeps = new Map();
+        const packageNodes = new Map();
+        
+        // Group visible nodes by package
+        visibleNodes.forEach(node => {
+            const filePath = node.file || node.path || node.filepath || node.location;
+            const packageName = this.getFolderFromPath(filePath) || 'unknown';
+            
+            if (!packageNodes.has(packageName)) {
+                packageNodes.set(packageName, []);
+                packageDeps.set(packageName, new Set());
             }
-            levelGroups.get(level).push(id);
+            packageNodes.get(packageName).push(node);
         });
         
-        // Position nodes
-        const levelSpacing = 200;
-        const verticalSpacing = 150;
-        
-        this.nodes.get().forEach((node) => {
-            const level = nodeLevels.get(node.id) || 0;
-            const nodesInLevel = levelGroups.get(level) || [];
-            const indexInLevel = nodesInLevel.indexOf(node.id);
+        // Build package dependencies from visible edges
+        visibleEdges.forEach(edge => {
+            const fromNode = visibleNodes.find(n => n.id === edge.from);
+            const toNode = visibleNodes.find(n => n.id === edge.to);
             
-            const x = level * levelSpacing;
-            const y = indexInLevel * verticalSpacing - (nodesInLevel.length * verticalSpacing) / 2;
-            
-            this.nodes.update({ id: node.id, x, y });
+            if (fromNode && toNode) {
+                const fromPackage = this.getFolderFromPath(fromNode.file || fromNode.path || fromNode.filepath || fromNode.location) || 'unknown';
+                const toPackage = this.getFolderFromPath(toNode.file || toNode.path || toNode.filepath || toNode.location) || 'unknown';
+                
+                if (fromPackage !== toPackage) {
+                    packageDeps.get(fromPackage).add(toPackage);
+                }
+            }
         });
         
-        // Step 2: Apply physics for compaction
-        this.network.setOptions(GraphConfig.getCompactPhysicsOptions());
+        // Topological sort for package order
+        const packageOrder = [];
+        const visited = new Set();
+        const visiting = new Set();
+        
+        const visit = (pkg) => {
+            if (visited.has(pkg)) return;
+            if (visiting.has(pkg)) return;
+            
+            visiting.add(pkg);
+            
+            const deps = packageDeps.get(pkg) || new Set();
+            deps.forEach(depPkg => {
+                if (packageNodes.has(depPkg)) {
+                    visit(depPkg);
+                }
+            });
+            
+            visiting.delete(pkg);
+            visited.add(pkg);
+            packageOrder.push(pkg);
+        };
+        
+        packageNodes.forEach((nodes, pkg) => {
+            visit(pkg);
+        });
+        
+        packageOrder.reverse();
+        
+        // Position nodes in package clusters
+        const packageSpacing = 400;
+        const nodeSpacing = 120;
+        
+        packageOrder.forEach((pkg, pkgIndex) => {
+            const baseX = pkgIndex * packageSpacing;
+            const nodes = packageNodes.get(pkg);
+            
+            nodes.forEach((node, nodeIndex) => {
+                const y = nodeIndex * nodeSpacing;
+                
+                this.nodes.update({
+                    id: node.id,
+                    x: baseX,
+                    y: y,
+                    fixed: { x: true, y: false }
+                });
+            });
+        });
+        
+        // Apply physics for vertical positioning within clusters
+        this.network.setOptions({
+            physics: {
+                enabled: true,
+                solver: 'barnesHut',
+                barnesHut: {
+                    gravitationalConstant: -2000,
+                    centralGravity: 0.1,
+                    springLength: 100,
+                    springConstant: 0.04,
+                    damping: 0.09,
+                    avoidOverlap: 0.5
+                },
+                stabilization: {
+                    enabled: true,
+                    iterations: 200
+                }
+            }
+        });
         
         const finishReorganization = () => {
             this.network.setOptions({ physics: { enabled: false } });
@@ -850,19 +922,9 @@ export class CallGraphViewer {
                     }
                 });
                 
-                // Enable free movement
-                allNodes.forEach((node) => {
-                    this.nodes.update({
-                        id: node.id,
-                        fixed: { x: false, y: false },
-                        physics: false
-                    });
-                });
-                
                 this.network.redraw();
-                this.layoutManager.fixHorizontalOverlaps();
                 
-                // Step 3: Fit to view and select node
+                // Fit to view and select node
                 setTimeout(() => {
                     this.network.selectNodes([nodeId]);
                     this.network.fit({
@@ -871,8 +933,8 @@ export class CallGraphViewer {
                             easingFunction: 'easeInOutQuad'
                         }
                     });
-                }, 300);
-            }, 200);
+                }, 100);
+            }, 100);
         };
         
         let stabilizationHandled = false;
@@ -889,7 +951,12 @@ export class CallGraphViewer {
                 stabilizationHandled = true;
                 finishReorganization();
             }
-        }, 5);
+        }, 1500);
+        
+        Logger.info('CallGraphViewer', 'Reorganized with package clustering', { 
+            packageCount: packageOrder.length,
+            packageOrder: packageOrder
+        });
     }
 
     updateGraphVisibility() {
