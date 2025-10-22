@@ -43,6 +43,8 @@ export class SearchManager {
         const searchTerm = query.trim().toLowerCase();
         const allNodes = this.viewer.originalData.nodes.get();
         
+        const visibleExactMatches = [];
+        const hiddenExactMatches = [];
         const visiblePrefixMatches = [];
         const hiddenPrefixMatches = [];
         const visibleFuzzyMatches = [];
@@ -57,55 +59,112 @@ export class SearchManager {
             // Get package info for prioritization
             const filePath = node.file || node.path || node.filepath || node.location;
             const packageName = this.viewer.getFolderFromPath(filePath) || 'unknown';
-            const packageLevel = this.getPackageLevel(packageName);
+            const packageLevel = this.getPackageLevel(filePath);
             
-            if (lowerLabel.startsWith(searchTerm)) {
-                // Exact prefix match
+            if (lowerLabel === searchTerm) {
+                // Exact match (case-insensitive)
                 if (isVisible) {
-                    visiblePrefixMatches.push({ node, label, isVisible, packageLevel });
+                    visibleExactMatches.push({ node, label, isVisible, packageLevel, packageName, filePath });
                 } else {
-                    hiddenPrefixMatches.push({ node, label, isVisible, packageLevel });
+                    hiddenExactMatches.push({ node, label, isVisible, packageLevel, packageName, filePath });
+                }
+            } else if (lowerLabel.startsWith(searchTerm)) {
+                // Prefix match
+                if (isVisible) {
+                    visiblePrefixMatches.push({ node, label, isVisible, packageLevel, packageName, filePath });
+                } else {
+                    hiddenPrefixMatches.push({ node, label, isVisible, packageLevel, packageName, filePath });
                 }
             } else {
                 // Try fuzzy match
                 const fuzzyScore = this.fuzzyMatch(label, searchTerm);
                 if (fuzzyScore > 0) {
                     if (isVisible) {
-                        visibleFuzzyMatches.push({ node, label, isVisible, fuzzyScore, packageLevel });
+                        visibleFuzzyMatches.push({ node, label, isVisible, fuzzyScore, packageLevel, packageName, filePath });
                     } else {
-                        hiddenFuzzyMatches.push({ node, label, isVisible, fuzzyScore, packageLevel });
+                        hiddenFuzzyMatches.push({ node, label, isVisible, fuzzyScore, packageLevel, packageName, filePath });
                     }
                 }
             }
         });
         
-        // Sort each category: package level first (lower = higher priority), then label
+        // Sort each category: package level first, then package alphabetically, then label
         const sortByPackageThenLabel = (a, b) => {
+            // 1. Package depth (shallower first)
             if (a.packageLevel !== b.packageLevel) return a.packageLevel - b.packageLevel;
+            // 2. Package/path alphabetically
+            const pathA = a.filePath || '';
+            const pathB = b.filePath || '';
+            if (pathA !== pathB) return pathA.localeCompare(pathB);
+            // 3. Function label alphabetically
             return a.label.localeCompare(b.label);
         };
         
+        visibleExactMatches.sort(sortByPackageThenLabel);
+        hiddenExactMatches.sort(sortByPackageThenLabel);
         visiblePrefixMatches.sort(sortByPackageThenLabel);
         hiddenPrefixMatches.sort(sortByPackageThenLabel);
         
         visibleFuzzyMatches.sort((a, b) => {
-            // Package level first
+            // 1. Package depth (shallower first)
             if (a.packageLevel !== b.packageLevel) return a.packageLevel - b.packageLevel;
-            // Then fuzzy score
+            // 2. Fuzzy score (higher first)
             if (b.fuzzyScore !== a.fuzzyScore) return b.fuzzyScore - a.fuzzyScore;
-            // Then label
+            // 3. Package/path alphabetically
+            const pathA = a.filePath || '';
+            const pathB = b.filePath || '';
+            if (pathA !== pathB) return pathA.localeCompare(pathB);
+            // 4. Function label alphabetically
             return a.label.localeCompare(b.label);
         });
         hiddenFuzzyMatches.sort((a, b) => {
-            // Package level first
+            // 1. Package depth (shallower first)
             if (a.packageLevel !== b.packageLevel) return a.packageLevel - b.packageLevel;
-            // Then fuzzy score
+            // 2. Fuzzy score (higher first)
             if (b.fuzzyScore !== a.fuzzyScore) return b.fuzzyScore - a.fuzzyScore;
-            // Then label
+            // 3. Package/path alphabetically
+            const pathA = a.filePath || '';
+            const pathB = b.filePath || '';
+            if (pathA !== pathB) return pathA.localeCompare(pathB);
+            // 4. Function label alphabetically
             return a.label.localeCompare(b.label);
         });
         
-        // Combine in priority order and take top 10
+        // Combine in priority order:
+        // 1. ALL exact matches (visible first)
+        // 2. Then prefix matches (up to 10 total minus exact matches)
+        // 3. Then fuzzy matches (up to 10 total minus exact and prefix matches)
+        const allExactMatches = [
+            ...visibleExactMatches,
+            ...hiddenExactMatches
+        ];
+        
+        // If we have exact matches, show ALL of them
+        if (allExactMatches.length > 0) {
+            // Show all exact matches + up to 10 more from other categories
+            const remainingSlots = Math.max(0, 10 - allExactMatches.length);
+            const otherMatches = [
+                ...visiblePrefixMatches,
+                ...hiddenPrefixMatches,
+                ...visibleFuzzyMatches,
+                ...hiddenFuzzyMatches
+            ].slice(0, remainingSlots);
+            
+            const results = [...allExactMatches, ...otherMatches];
+            Logger.debug('SearchManager', 'Search suggestions sorted', { 
+                query: searchTerm,
+                results: results.map(r => ({
+                    label: r.label,
+                    depth: r.packageLevel,
+                    package: r.packageName,
+                    path: r.filePath,
+                    visible: r.isVisible
+                }))
+            });
+            return results;
+        }
+        
+        // No exact matches, show top 10 from other categories
         const allSuggestions = [
             ...visiblePrefixMatches,
             ...hiddenPrefixMatches,
@@ -113,34 +172,39 @@ export class SearchManager {
             ...hiddenFuzzyMatches
         ];
         
-        return allSuggestions.slice(0, 10);
+        const results = allSuggestions.slice(0, 10);
+        Logger.debug('SearchManager', 'Search suggestions sorted', { 
+            query: searchTerm,
+            results: results.map(r => ({
+                label: r.label,
+                depth: r.packageLevel,
+                package: r.packageName,
+                path: r.filePath,
+                visible: r.isVisible
+            }))
+        });
+        return results;
     }
     
-    getPackageLevel(packageName) {
-        // Try to get from cached chain statistics if available
-        if (this.viewer.originalData && this.viewer.originalData.nodes) {
-            const nodes = this.viewer.originalData.nodes.get();
-            
-            // Find a node from this package
-            const nodeFromPackage = nodes.find(n => {
-                const filePath = n.file || n.path || n.filepath || n.location;
-                const pkg = this.viewer.getFolderFromPath(filePath) || 'unknown';
-                return pkg === packageName;
-            });
-            
-            if (nodeFromPackage) {
-                // Use longest outgoing chain as a proxy for package level
-                // Higher outgoing chain = earlier in the call graph = lower level number
-                // Invert it: package with longest outgoing chain gets level 0
-                const outgoingChain = nodeFromPackage.longestOutgoingChain || 0;
-                
-                // Return negative of outgoing chain so higher chains = lower level numbers
-                // This makes root packages (high outgoing chains) appear first
-                return -outgoingChain;
-            }
+    getPackageLevel(filePath) {
+        if (!filePath) {
+            return 999; // Unknown packages go last
         }
         
-        return 999; // Unknown packages go last
+        // Calculate folder depth based on path separators in the file path
+        // Less depth = higher priority = lower level number
+        // Examples:
+        //   "main/server.go" → 1 slash → level 1
+        //   "api/handlers.go" → 1 slash → level 1
+        //   "api/handlers/users.go" → 2 slashes → level 2
+        //   "api/handlers/users/auth.go" → 3 slashes → level 3
+        
+        // Count slashes (folder separators)
+        const depth = (filePath.match(/\//g) || []).length;
+        
+        // Files at root level (no folders) get highest priority
+        // Files one folder deep get next priority, etc.
+        return depth;
     }
     
     renderSuggestions() {
