@@ -121,7 +121,12 @@ class GoParser {
                     const funcBody = this.extractFunctionBody(content, funcStart);
                     
                     if (funcBody) {
+                        // Extract calls from the main function body
                         const calls = this.extractFunctionCalls(funcBody);
+                        
+                        // Also extract calls from local/nested functions
+                        const localFunctionCalls = this.extractLocalFunctionCalls(funcBody);
+                        localFunctionCalls.forEach(call => calls.add(call));
                         
                         this.functions.set(fullName, {
                             name: funcName,
@@ -268,6 +273,83 @@ class GoParser {
         }
         
         return calls;
+    }
+
+    /**
+     * Extract calls from local/nested functions within a function body
+     * Handles: varName := func() { ... } and func() { ... }
+     */
+    extractLocalFunctionCalls(body) {
+        const allCalls = new Set();
+        
+        // Find all local function definitions
+        // Pattern 1: varName := func() { ... }
+        // Pattern 2: anonymous functions func() { ... }
+        const funcPattern = /func\s*\([^)]*\)\s*(?:\([^)]*\))?\s*\{/g;
+        
+        let match;
+        while ((match = funcPattern.exec(body)) !== null) {
+            const funcStart = match.index + match[0].length - 1; // Position of opening brace
+            
+            // Extract the nested function body
+            const nestedBody = this.extractNestedFunctionBody(body, funcStart);
+            
+            if (nestedBody) {
+                // Extract calls from the nested function
+                const calls = this.extractFunctionCalls(nestedBody);
+                calls.forEach(call => allCalls.add(call));
+                
+                // Recursively extract from deeper nested functions
+                const deeperCalls = this.extractLocalFunctionCalls(nestedBody);
+                deeperCalls.forEach(call => allCalls.add(call));
+            }
+        }
+        
+        return allCalls;
+    }
+
+    /**
+     * Extract a nested function body starting from the opening brace
+     * Similar to extractFunctionBody but works within an already extracted body
+     */
+    extractNestedFunctionBody(content, startPos) {
+        let braceCount = 0;
+        let body = '';
+        let inString = false;
+        let stringChar = '';
+        
+        for (let i = startPos; i < content.length; i++) {
+            const char = content[i];
+            const prevChar = i > 0 ? content[i - 1] : '';
+            
+            // Handle strings
+            if ((char === '"' || char === '`') && prevChar !== '\\') {
+                if (!inString) {
+                    inString = true;
+                    stringChar = char;
+                } else if (char === stringChar) {
+                    inString = false;
+                }
+            }
+            
+            // Count braces only outside strings
+            if (!inString) {
+                if (char === '{') {
+                    braceCount++;
+                } else if (char === '}') {
+                    braceCount--;
+                }
+            }
+            
+            body += char;
+            
+            // Stop when we've closed all braces
+            if (braceCount === 0 && body.length > 1) {
+                break;
+            }
+        }
+        
+        return body;
     }
 
     /**
