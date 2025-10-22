@@ -773,24 +773,32 @@ export class CallGraphViewer {
         
         // Assign X positions to packages (clusters)
         const packageSpacing = 500; // Space between package cluster centers
-        const nodeSpacing = 120; // Initial vertical spacing between nodes
+        const baseNodeSpacing = 120; // Base vertical spacing between nodes
         const nodeHorizontalSpacing = 80; // Horizontal spacing within package based on depth
         
         packageOrder.forEach((pkg, pkgIndex) => {
             const packageLeft = pkgIndex * packageSpacing;
             const nodes = packageNodes.get(pkg);
             
+            // Randomize starting Y position for this package (to prevent all packages starting at Y=0)
+            const packageStartY = Math.random() * 200; // Random offset 0-200 pixels
+            
             // Calculate node depths within this package (left to right based on call graph)
             const nodeDepths = this.calculateNodeDepthsInPackage(nodes, allEdges);
             
             // Position nodes based on their depth within the package
+            let currentY = packageStartY;
             nodes.forEach((node) => {
                 const depth = nodeDepths.get(node.id) || 0;
-                // Add small random jitter (main overlap prevention is handled by spreadNodesVertically)
-                const jitterX = (Math.random() - 0.5) * 8; // ±4 pixels horizontal jitter
-                const jitterY = (Math.random() - 0.5) * 16; // ±8 pixels vertical jitter
+                // Randomize spacing between nodes (80-160 pixels)
+                const nodeSpacing = baseNodeSpacing + (Math.random() - 0.5) * 80;
+                
+                // Add small jitter
+                const jitterX = (Math.random() - 0.5) * 8;
+                const jitterY = (Math.random() - 0.5) * 16;
+                
                 const x = packageLeft + (depth * nodeHorizontalSpacing) + jitterX;
-                const y = nodes.indexOf(node) * nodeSpacing + jitterY;
+                const y = currentY + jitterY;
                 
                 this.nodes.update({
                     id: node.id,
@@ -799,6 +807,9 @@ export class CallGraphViewer {
                     fixed: false, // Allow free movement - physics will arrange based on connections
                     level: pkgIndex // Use level to maintain package ordering
                 });
+                
+                // Move to next Y position with randomized spacing
+                currentY += nodeSpacing;
             });
         });
     }
@@ -1049,24 +1060,32 @@ export class CallGraphViewer {
         
         // Position nodes in package clusters based on call depth
         const packageSpacing = 500;
-        const nodeSpacing = 120;
+        const baseNodeSpacing = 120;
         const nodeHorizontalSpacing = 80;
         
         packageOrder.forEach((pkg, pkgIndex) => {
             const packageLeft = pkgIndex * packageSpacing;
             const nodes = packageNodes.get(pkg);
             
+            // Randomize starting Y position for this package (to prevent all packages starting at Y=0)
+            const packageStartY = Math.random() * 200; // Random offset 0-200 pixels
+            
             // Calculate node depths within this package (left to right based on call graph)
             const nodeDepths = this.calculateNodeDepthsInPackage(nodes, allOriginalEdges);
             
             // Position nodes based on their depth within the package
+            let currentY = packageStartY;
             nodes.forEach((node) => {
                 const depth = nodeDepths.get(node.id) || 0;
-                // Add random jitter to prevent perfect alignment and arrow overlap
-                const jitterX = (Math.random() - 0.5) * 10; // ±5 pixels horizontal jitter
-                const jitterY = (Math.random() - 0.5) * 40; // ±20 pixels vertical jitter (more to separate horizontal arrows)
+                // Randomize spacing between nodes (80-160 pixels)
+                const nodeSpacing = baseNodeSpacing + (Math.random() - 0.5) * 80;
+                
+                // Add small jitter
+                const jitterX = (Math.random() - 0.5) * 8;
+                const jitterY = (Math.random() - 0.5) * 16;
+                
                 const x = packageLeft + (depth * nodeHorizontalSpacing) + jitterX;
-                const y = nodes.indexOf(node) * nodeSpacing + jitterY;
+                const y = currentY + jitterY;
                 
                 this.nodes.update({
                     id: node.id,
@@ -1075,6 +1094,9 @@ export class CallGraphViewer {
                     fixed: false,
                     level: pkgIndex
                 });
+                
+                // Move to next Y position with randomized spacing
+                currentY += nodeSpacing;
             });
         });
         
