@@ -151,15 +151,17 @@ export class SearchManager {
             ].slice(0, remainingSlots);
             
             const results = [...allExactMatches, ...otherMatches];
+            const debugInfo = results.map(r => ({
+                label: r.label,
+                depth: r.packageLevel,
+                package: r.packageName,
+                path: r.filePath,
+                visible: r.isVisible
+            }));
+            console.log('🔍 Search suggestions sorted:', debugInfo);
             Logger.debug('SearchManager', 'Search suggestions sorted', { 
                 query: searchTerm,
-                results: results.map(r => ({
-                    label: r.label,
-                    depth: r.packageLevel,
-                    package: r.packageName,
-                    path: r.filePath,
-                    visible: r.isVisible
-                }))
+                results: debugInfo
             });
             return results;
         }
@@ -173,27 +175,31 @@ export class SearchManager {
         ];
         
         const results = allSuggestions.slice(0, 10);
+        const debugInfo = results.map(r => ({
+            label: r.label,
+            depth: r.packageLevel,
+            package: r.packageName,
+            path: r.filePath,
+            visible: r.isVisible
+        }));
+        console.log('🔍 Search suggestions sorted:', debugInfo);
         Logger.debug('SearchManager', 'Search suggestions sorted', { 
             query: searchTerm,
-            results: results.map(r => ({
-                label: r.label,
-                depth: r.packageLevel,
-                package: r.packageName,
-                path: r.filePath,
-                visible: r.isVisible
-            }))
+            results: debugInfo
         });
         return results;
     }
     
     getPackageLevel(filePath) {
         if (!filePath) {
+            Logger.debug('SearchManager', 'Missing file path for node', { filePath });
             return 999; // Unknown packages go last
         }
         
         // Calculate folder depth based on path separators in the file path
         // Less depth = higher priority = lower level number
         // Examples:
+        //   "server.go" → 0 slashes → level 0 (highest priority - root level)
         //   "main/server.go" → 1 slash → level 1
         //   "api/handlers.go" → 1 slash → level 1
         //   "api/handlers/users.go" → 2 slashes → level 2

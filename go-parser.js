@@ -61,20 +61,32 @@ class GoParser {
             // Split by lines and look for function declarations
             const lines = content.split('\n');
             let currentPos = 0;
+            let inBlockComment = false;
             
             for (let i = 0; i < lines.length; i++) {
                 const line = lines[i];
                 const trimmedLine = line.trim();
                 
-                // Skip comments and blank lines
-                if (trimmedLine.startsWith('//') || trimmedLine.startsWith('/*') || trimmedLine === '') {
+                // Track multi-line comment blocks
+                if (trimmedLine.includes('/*')) {
+                    inBlockComment = true;
+                }
+                if (trimmedLine.includes('*/')) {
+                    inBlockComment = false;
+                    currentPos += line.length + 1;
+                    continue;
+                }
+                
+                // Skip if inside block comment, single-line comment, or blank line
+                if (inBlockComment || trimmedLine.startsWith('//') || trimmedLine === '') {
                     currentPos += line.length + 1; // +1 for newline
                     continue;
                 }
                 
                 // Match function declarations
                 // Handles: func name(), func (r Receiver) name(), func name[T any]()
-                const funcMatch = trimmedLine.match(/^func\s+(?:\([^)]+\)\s+)?(\w+)(?:\[[^\]]+\])?\s*\(/);
+                // Note: Receiver can be on same line: func (r *Receiver) name()
+                const funcMatch = trimmedLine.match(/^func\s+(?:\([^)]*\)\s+)?(\w+)(?:\s*\[[^\]]+\])?\s*\(/);
                 
                 if (funcMatch) {
                     const funcName = funcMatch[1];
@@ -85,8 +97,12 @@ class GoParser {
                     const funcPos = currentPos + line.indexOf('func');
                     
                     // Find where parameters end - need to handle nested parens
+                    // Look for the opening paren - it's the last '(' on the line for function parameters
                     let parenDepth = 0;
-                    let paramStart = currentPos + line.indexOf('(', line.indexOf(funcName));
+                    const funcNameIndex = line.indexOf(funcName);
+                    const afterFuncName = line.substring(funcNameIndex + funcName.length);
+                    const paramStartInLine = funcNameIndex + funcName.length + afterFuncName.indexOf('(');
+                    let paramStart = currentPos + paramStartInLine;
                     let paramEnd = paramStart;
                     let inString = false;
                     let stringChar = '';
@@ -135,13 +151,18 @@ class GoParser {
                             line: lineNumber,
                             calls: calls
                         });
+                    } else {
+                        console.warn(`Failed to extract body for function ${fullName} at line ${lineNumber} in ${filePath}`);
                     }
                 }
                 
                 currentPos += line.length + 1; // +1 for newline
             }
             
-            console.log(`Parsed ${filePath}: found ${this.functions.size} total functions`);
+            const functionsInFile = Array.from(this.functions.entries())
+                .filter(([name, data]) => data.file === filePath)
+                .map(([name]) => name);
+            console.log(`Parsed ${filePath}: found ${functionsInFile.length} functions:`, functionsInFile);
         } catch (error) {
             console.error(`Error parsing ${filePath}:`, error);
         }
